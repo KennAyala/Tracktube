@@ -13,6 +13,8 @@ Reference: [Recommended upload encoding settings](https://support.google.com/you
 ## Features
 
 - Two simple inputs: **Album art** (jpg, jpeg, png, bmp) and **Audio track** (wav, flac, mp3, ogg), with buttons to add, replace and delete, plus drag and drop.
+- **Audio information:** the Audio track section shows the duration, format, bitrate and bit depth of the file (bit depth only applies to lossless formats such as WAV and FLAC; it shows `—` for MP3 and OGG).
+- **Audio preview:** a Play / Stop button to listen to the audio before exporting.
 - Live **preview** of the frame that will fill the whole video.
 - **PNG transparency is preserved:** transparent areas show the selected background (black when there is none), because MP4 has no alpha channel. The shadow follows the album art silhouette.
 - **Aspect ratios:** 1:1, 4:3, 5:4 and 16:9, with **horizontal** (default) and **vertical** orientation buttons (3:4, 4:5 and 9:16).
@@ -20,12 +22,13 @@ Reference: [Recommended upload encoding settings](https://support.google.com/you
 - **FPS:** Minimum (1), 15, 24, 30 and 60 (default).
 - **Image fit:** Fit, Crop or Stretch.
 - With *Fit*: **background** (none, blurred album art or a custom image), album art **shadow** and a **margin** that moves the album art away from the edge.
-- Editable **export path** (default `exports/{uuid}.mp4`), a button to change the folder and a refresh button that generates a new UUID. The UUID changes every time the app opens and after each export; a file name you typed yourself is kept.
+- **Export folder** and **file name** are separate fields (default `exports/` and `{uuid}.mp4`). A button changes the folder, and a refresh button next to the file name generates a new UUID. The UUID changes every time the app opens and after each export; a file name you typed yourself is kept.
 - Warns you before exporting if a video already exists at the chosen path and will be replaced.
-- Progress bar with its status (Ready, Exporting, Done) and a cancel button.
+- Progress bar with its status next to the Export button (Ready, Exporting… 45%, Done) and a cancel button.
 - **YouTube Short warning** when the video lasts 3:00 or less and the aspect ratio is not horizontal.
+- **Theme:** System (default, follows the Windows light/dark setting), Light or Dark, from the header.
 - Interface in **English** (default) and **Spanish**.
-- Remembers your settings (options and export path) between sessions.
+- Remembers your settings (theme, language, options, export folder and file name) between sessions, in `user/conf.ini`.
 - **Log** panel for debugging, opened from the button at the top of the window and shown on the side.
 
 ## Requirements
@@ -34,7 +37,7 @@ Reference: [Recommended upload encoding settings](https://support.google.com/you
 - Windows (see [Known limitations](#known-limitations)).
 - FFmpeg does not need to be installed: the binary ships with the `imageio-ffmpeg` package.
 
-Dependencies (see [requirements.txt](requirements.txt)): PySide6, imageio-ffmpeg, mutagen, Pillow and pytest.
+Dependencies (see [requirements.txt](requirements.txt)): PySide6 6.8 or newer (it provides the interface, the audio preview and the light/dark theme), imageio-ffmpeg, mutagen, Pillow and pytest.
 
 ## Installation
 
@@ -60,9 +63,10 @@ If you prefer, you can skip the virtual environment and install the dependencies
 Basic flow:
 
 1. Add an image in **Album art** and an audio file in **Audio track**.
-2. Choose aspect ratio, orientation, resolution, FPS and image fit.
-3. Check the **Preview**.
-4. Confirm the export path and click **Export**.
+2. Check the audio information and, if you want, listen to it with **Play**.
+3. Choose aspect ratio, orientation, resolution, FPS and image fit.
+4. Check the **Preview**.
+5. Confirm the export folder and file name and click **Export**.
 
 ## Exported video specifications
 
@@ -88,7 +92,11 @@ Dimensions are computed from the short side and rounded to even numbers (a `yuv4
 
 ## Saved settings
 
-Options and the export path are stored with `QSettings` (on Windows, in the registry under `HKEY_CURRENT_USER\Software\Tracktube`). If the saved path uses a UUID as its file name, a new UUID is assigned every time the app starts so the previous export is not overwritten; a name typed by hand is kept.
+Your settings (theme, language, options, export folder and file name) are saved in `user/conf.ini`, next to the app. The `user/` folder is created automatically and is listed in `.gitignore`, so it is never committed. You can delete `user/conf.ini` to go back to the default settings.
+
+If the saved file name is a UUID, a new UUID is assigned every time the app starts so the previous export is not overwritten; a name typed by hand is kept.
+
+Settings saved by earlier versions (in the Windows registry) are not imported, except the old export path, which is split into folder and file name.
 
 ## Project structure
 
@@ -99,8 +107,10 @@ tracktube/
 ├─ pytest.ini
 ├─ assets/                  # logo (logo.svg for docs, logo.png for the window icon)
 ├─ exports/                 # default export folder
+├─ user/                    # created at runtime: conf.ini with your settings (git-ignored)
 ├─ tracktube/
 │  ├─ config.py             # allowed extensions and base paths
+│  ├─ settings.py           # user settings in user/conf.ini
 │  ├─ i18n.py               # translations (en / es)
 │  ├─ log.py                # debug logger
 │  ├─ core/
@@ -108,11 +118,13 @@ tracktube/
 │  │  ├─ fit_modes.py       # image fit: FFmpeg filter + Pillow preview
 │  │  ├─ ffmpeg_cmd.py      # builds the FFmpeg command
 │  │  ├─ exporter.py        # runs FFmpeg, progress and cancellation
-│  │  ├─ export_path.py     # default export path and folder change
-│  │  └─ media_info.py      # audio duration and image validation
+│  │  ├─ export_path.py     # default file name and folder + name join
+│  │  └─ media_info.py      # audio info (duration, format, bitrate, bit depth) and image validation
 │  └─ ui/
 │     ├─ main_window.py
 │     ├─ file_slot.py       # file input (add, replace, delete)
+│     ├─ audio_slot.py      # audio input with the Play / Stop preview
+│     ├─ theme.py           # system / light / dark theme
 │     ├─ preview_widget.py
 │     ├─ export_worker.py   # export thread
 │     └─ log_panel.py       # log panel
@@ -134,9 +146,11 @@ What they cover:
 | `test_presets.py` | Even and correct dimensions per ratio and resolution, orientation, bitrates, GOP and the YouTube Short rule |
 | `test_fit_modes.py` | FFmpeg filters and Pillow preview for each fit, background, shadow and margin |
 | `test_exporter.py` | Real exports: checks H.264 High, `yuv420p`, BT.709, size, fps, AAC 48 kHz stereo, progress, cancellation and logging |
-| `test_export_path.py` | Default path, relative path resolution, `.mp4` extension and folder change |
-| `test_main_window.py` | UI (headless): UUID renewal on start and after exporting, refresh button, overwrite confirmation |
-| `test_media_info.py` | Transparency detection for PNG images |
+| `test_export_path.py` | Default file name, relative path resolution, `.mp4` extension and folder + name join |
+| `test_main_window.py` | UI (headless): folder and file name fields, UUID renewal on start and after exporting, refresh button, overwrite confirmation, audio info, Play / Stop preview, theme selector, progress status |
+| `test_media_info.py` | Audio info for WAV, FLAC, MP3 and OGG (duration, format, bitrate, bit depth) and transparency detection for PNG images |
+| `test_settings.py` | Settings saved in `user/conf.ini`, folder creation and `user/` in `.gitignore` |
+| `test_theme.py` | Which color scheme each theme requests |
 | `test_i18n.py` | Same keys in English and Spanish, default language |
 | `test_log.py` | Message forwarding to the log panel |
 
@@ -149,10 +163,15 @@ What they cover:
 - [ ] The ✕ button next to the margin resets it to 0.
 - [ ] The Short warning shows for audio of 3:00 or less in 1:1 or vertical, and hides in horizontal or above 3:00.
 - [ ] Switching between English and Spanish translates the whole interface.
-- [ ] Closing and reopening the app keeps the settings and export path.
-- [ ] The UUID in the export path changes when the app opens, after each export and when clicking the refresh button.
+- [ ] The Audio track section shows duration, format, bitrate and bit depth (`—` for MP3 and OGG bit depth).
+- [ ] **Play** plays the audio and becomes **Stop**; **Stop**, replacing or deleting the audio stops it.
+- [ ] The theme selector offers System (first and default), Light and Dark, and the window changes right away, including the orientation icons.
+- [ ] With the System theme, the app follows the Windows light/dark setting.
+- [ ] Closing and reopening the app keeps the settings, and they are written to `user/conf.ini`.
+- [ ] The export folder and file name are separate, and the refresh button sits next to the file name.
+- [ ] The UUID in the file name changes when the app opens, after each export and when clicking the refresh button.
 - [ ] Exporting to a path that already exists shows a warning with Replace and Cancel; Cancel leaves the file untouched.
-- [ ] Export, cancel halfway, and export again.
+- [ ] Export, cancel halfway, and export again; the status next to the Export button shows the percentage.
 - [ ] Open the resulting MP4 and confirm it matches the preview.
 - [ ] The **Log** button at the top opens the panel on the right, and it shows the FFmpeg command and progress.
 
@@ -160,6 +179,8 @@ What they cover:
 
 - Only tested on Windows. The code has no known Windows-only dependencies, but other systems have not been tried.
 - Bitrate values are taken from YouTube's recommendations and should be checked against the official documentation from time to time.
+- The Light and Dark themes use Qt's color scheme support, so they need PySide6 6.8 or newer; the System theme follows the Windows setting.
+- The audio preview uses the system audio output, so it needs a working audio device.
 - With 60 fps and high resolutions (for example 4K), encoding long audio files takes noticeably longer.
 - There is no `.exe` packaging yet.
 
