@@ -13,17 +13,18 @@ Reference: [Recommended upload encoding settings](https://support.google.com/you
 ## Features
 
 - Two simple inputs: **Audio track** (wav, flac, mp3, ogg) and **Album art** (jpg, jpeg, png, bmp), in that order, with buttons to add, replace and delete, plus drag and drop.
-- **Audio information:** the Audio track section shows the duration, format, bitrate and bit depth of the file (bit depth only applies to lossless formats such as WAV and FLAC; it shows `—` for MP3 and OGG).
+- **Audio information:** the Audio track section shows the duration, format, bitrate and bit depth of the file (bit depth only applies to lossless formats such as WAV and FLAC; it shows `—` for MP3 and OGG). Below it, an **Album art in metadata** line says **Yes (width × height)** in green when the file has an image in its tags, or **No** in red when it does not.
 - **Audio preview:** a Play / Stop button to listen to the audio before exporting.
 - **Image from the audio metadata:** when you load an audio file, Tracktube looks for an image in its tags (cover art in MP3 and WAV via ID3, FLAC pictures, and OGG Vorbis / Opus). If there is one, a **Use metadata image** button appears in the Album art section; clicking it uses that image as the album art. It never replaces your image on its own.
 - Live **preview** of the frame that will fill the whole video.
-- **Export preview as image:** a button under the preview saves the frame as a **JPG** (default) or **PNG**. It is rendered at the video's resolution and aspect ratio, with the current fit, background, shadow and margin.
+- **Export preview as image:** a button under the preview saves the frame as a **JPG** (default) or **PNG**. It is rendered at the video's resolution and aspect ratio, with the current fit, background, darkness, shadow and margin. The suggested file name is the current **File name** (for example `my-video.mp4` suggests `my-video.jpg`).
 - **PNG transparency is preserved:** transparent areas show the selected background (black when there is none), because MP4 has no alpha channel. The shadow follows the album art silhouette.
 - **Aspect ratios:** 1:1, 4:3, 5:4 and 16:9, with **horizontal** (default) and **vertical** orientation buttons (3:4, 4:5 and 9:16).
 - **Resolutions:** 480p, 720p, 1080p, 1440p and 2160p (4K). Resolution is taken from the short side.
 - **FPS:** Minimum (1), 15, 24, 30 and 60 (default).
 - **Image fit:** Fit, Crop or Stretch.
-- With *Fit*: **background** (none, blurred album art or a custom image), album art **shadow** and a **margin** that moves the album art away from the edge.
+- With *Fit*: **background** (none, blurred album art or a custom image), album art **shadow** and a **margin** that moves the album art away from the edge. A **negative margin** (down to -50 %) does the opposite: it enlarges the album art past the edges so it looks closer.
+- **Background darkness:** a percentage that darkens the background (0 % leaves it as is, 100 % makes it black). It is always visible and is enabled only when a background is used; it never darkens the album art or its shadow.
 - **Export folder** and **file name** are separate fields (default `exports/` and `{uuid}.mp4`). A button changes the folder, and a refresh button next to the file name generates a new UUID. The UUID changes every time the app opens and after each export; a file name you typed yourself is kept.
 - Warns you before exporting if a video already exists at the chosen path and will be replaced.
 - Progress bar with its status next to the Export button (Ready, Exporting… 45%, Done) and a cancel button.
@@ -154,7 +155,9 @@ What they cover:
 | `test_main_window.py` | UI (headless): folder and file name fields, UUID renewal on start and after exporting, refresh button, overwrite confirmation, audio info, Play / Stop preview, theme selector, progress status |
 | `test_media_info.py` | Audio info for WAV, FLAC, MP3 and OGG (duration, format, bitrate, bit depth), the image embedded in the tags of real MP3, WAV, FLAC and OGG files, and transparency detection for PNG images |
 | `test_image_export.py` | Choosing JPG or PNG from the extension or the dialog filter, and saving both formats |
-| `test_cover_and_preview_export.py` | UI (headless): the "Use metadata image" button and the export of the preview as an image (format, size, current settings, cancel and errors) |
+| `test_cover_and_preview_export.py` | UI (headless): the "Use metadata image" button and the export of the preview as an image (format, size, current settings, suggested file name, cancel and errors) |
+| `test_darkness_and_negative_margin.py` | Background darkness and negative margin in the FFmpeg filter, the preview and real exports (it measures the pixels of the exported video) |
+| `test_options_and_cover_label.py` | UI (headless): the darkness input (always visible, enabled only with a background), negative margin, and the "Album art in metadata" label with its colors and languages |
 | `test_settings.py` | Settings saved in `user/conf.ini`, folder creation and `user/` in `.gitignore` |
 | `test_theme.py` | Which color scheme each theme requests |
 | `test_i18n.py` | Same keys in English and Spanish, default language |
@@ -165,7 +168,11 @@ What they cover:
 - [ ] Add, replace and delete the image and the audio (with the buttons and by dragging).
 - [ ] Loading an audio file with an image in its tags shows **Use metadata image**; one without it does not. Clicking it loads that image as the album art.
 - [ ] **Export preview as image** is disabled without an image, opens a save dialog with JPG first (default) and PNG, and the saved file has the video's resolution.
-- [ ] The preview updates when changing ratio, orientation, fit, background, shadow and margin.
+- [ ] The **Album art in metadata** line shows **Yes (width × height)** in green for an audio with an image in its tags and **No** in red for one without, in both the light and dark themes.
+- [ ] **Background darkness** is always visible; it is disabled with no background (or with Crop / Stretch) and enabled with a blurred or custom background, and a higher value gives a darker background in the preview and in the video.
+- [ ] The margin accepts negative values and the album art gets bigger and closer; the ✕ button resets it to 0.
+- [ ] **Export preview as image** suggests the same name as the **File name** field, with `.jpg`.
+- [ ] The preview updates when changing ratio, orientation, fit, background, darkness, shadow and margin.
 - [ ] A PNG with transparency shows the background through its transparent areas (no white box) in the thumbnail, the preview and the exported video.
 - [ ] Switching to vertical renames the ratio selector entries to 3:4, 4:5 and 9:16.
 - [ ] The ✕ button next to the margin resets it to 0.

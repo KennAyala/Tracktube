@@ -49,6 +49,7 @@ def get_audio_info(path):
 class EmbeddedCover:
     data: bytes
     mime: str
+    size: tuple[int, int] | None = None  # (ancho, alto); None si no se pudo leer
 
 
 FRONT_COVER = 3  # tipo de imagen "portada" en ID3 y FLAC
@@ -86,7 +87,12 @@ def get_embedded_cover(path):
         return None
     picture_type, mime, data = next(
         (picture for picture in pictures if picture[0] == FRONT_COVER), pictures[0])
-    return EmbeddedCover(data=bytes(data), mime=mime)
+    try:
+        with Image.open(io.BytesIO(data)) as image:  # solo lee la cabecera
+            size = image.size
+    except (UnidentifiedImageError, OSError):
+        size = None
+    return EmbeddedCover(data=bytes(data), mime=mime, size=size)
 
 
 def save_embedded_cover(cover, folder):

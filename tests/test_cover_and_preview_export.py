@@ -164,12 +164,13 @@ def test_exporta_la_vista_previa_como_jpg_por_defecto(make_window, media, save_d
     window.slot_image.set_file(media[0])
     window.slot_audio.set_file(media[1])
     window.input_folder.setText(str(tmp_path))
+    window.input_filename.setText("mi-cancion.mp4")
     save_dialog["answer"] = (str(tmp_path / "vista"), JPG_FILTER)
     window.preview.btn_export_image.click()
 
     call = save_dialog["calls"][0]
     assert call["filters"] == IMAGE_FILTERS and call["filters"].startswith("JPG")
-    assert Path(call["start"]) == tmp_path / "track.jpg"  # nombre del audio, JPG por defecto
+    assert Path(call["start"]) == tmp_path / "mi-cancion.jpg"  # nombre del video, JPG por defecto
     with Image.open(tmp_path / "vista.jpg") as image:
         assert image.format == "JPEG" and image.size == (1920, 1080)
 
@@ -191,11 +192,37 @@ def test_la_extension_escrita_manda_sobre_el_filtro(make_window, media, save_dia
     assert (tmp_path / "vista.png").is_file() and not (tmp_path / "vista.png.jpg").exists()
 
 
-def test_sin_audio_el_nombre_sugerido_es_preview(make_window, media, save_dialog):
+@pytest.mark.parametrize("filename, suggested", [
+    ("mi-video.mp4", "mi-video.jpg"),
+    ("sin-extension", "sin-extension.jpg"),
+    ("a.b.mp4", "a.b.jpg"),
+    ("", "preview.jpg"),
+    ("   ", "preview.jpg"),
+])
+def test_el_nombre_sugerido_es_el_del_campo_de_nombre_de_archivo(
+        make_window, media, save_dialog, filename, suggested):
     window = make_window()
     window.slot_image.set_file(media[0])
+    window.input_filename.setText(filename)
     window.preview.btn_export_image.click()  # el diálogo se cancela (respuesta vacía)
-    assert Path(save_dialog["calls"][0]["start"]).name == "preview.jpg"
+    assert Path(save_dialog["calls"][0]["start"]).name == suggested
+
+
+def test_el_nombre_sugerido_por_defecto_es_el_uuid_actual(make_window, media, save_dialog):
+    window = make_window()
+    window.slot_image.set_file(media[0])
+    uuid_name = Path(window.input_filename.text()).stem
+    window.preview.btn_export_image.click()
+    assert Path(save_dialog["calls"][0]["start"]).name == f"{uuid_name}.jpg"
+
+
+def test_el_nombre_sugerido_sigue_al_boton_de_refrescar(make_window, media, save_dialog):
+    window = make_window()
+    window.slot_image.set_file(media[0])
+    window.btn_refresh_uuid.click()
+    new_stem = Path(window.input_filename.text()).stem
+    window.preview.btn_export_image.click()
+    assert Path(save_dialog["calls"][0]["start"]).name == f"{new_stem}.jpg"
 
 
 def test_cancelar_el_dialogo_no_guarda_nada(make_window, media, save_dialog, tmp_path):

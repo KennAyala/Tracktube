@@ -4,12 +4,12 @@ Cada modo tiene dos implementaciones equivalentes:
 - build_filter_graph: filtro de FFmpeg para el video final.
 - render_preview: la misma lógica con Pillow para el preview de la UI.
 
-Los fondos, la sombra y el margen solo aplican al modo "ajustar".
+Los fondos, su oscuridad, la sombra y el margen solo aplican al modo "ajustar".
 """
 
 import math
 
-from PIL import Image, ImageFilter, ImageOps
+from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 
 FIT_MODES = ("ajustar", "cortar", "estirar")
 DEFAULT_FIT_MODE = "ajustar"
@@ -17,8 +17,13 @@ DEFAULT_FIT_MODE = "ajustar"
 BACKGROUNDS = ("ninguno", "desenfocado", "personalizado")
 DEFAULT_BACKGROUND = "ninguno"
 
-# Margen del album art respecto al borde, en % del lado corto
+# Margen del album art respecto al borde, en % del lado corto. Un margen negativo
+# agranda el album art más allá del cuadro (se acerca y el borde se recorta).
+MIN_MARGIN = -50
 MAX_MARGIN = 40
+
+# Oscuridad del fondo en %: 0 lo deja igual y 100 lo vuelve negro
+MAX_DARKNESS = 100
 
 _SHADOW_OPACITY = 0.6
 
@@ -45,13 +50,22 @@ def _inset(width, height, margin):
     return round(min(width, height) * margin / 100)
 
 
+def _darken_filter(darkness):
+    """Filtro de FFmpeg que oscurece el color del fondo (el alfa no cambia)."""
+    if not darkness:
+        return ""
+    factor = 1 - darkness / 100
+    return f",colorchannelmixer=rr={factor:g}:gg={factor:g}:bb={factor:g}"
+
+
 def build_filter_graph(mode, width, height, fps, background=DEFAULT_BACKGROUND,
-                       shadow=False, margin=0, transparent=False):
+                       shadow=False, margin=0, transparent=False, darkness=0):
     """Devuelve el filter_complex de FFmpeg con salida etiquetada [v].
 
     El input se lee a 1 fps y `fps` duplica el frame al final, así los
     filtros pesados solo se ejecutan una vez por segundo.
-    El fondo "personalizado" toma su imagen del input [2:v].
+    El fondo "personalizado" toma su imagen del input [2:v] y `darkness` (0-100)
+    oscurece el fondo desenfocado o personalizado.
     Si la imagen tiene transparencia (`transparent`), se compone sobre el fondo
     (negro cuando no hay fondo), porque el MP4 no admite canal alfa.
     """
@@ -63,7 +77,8 @@ def build_filter_graph(mode, width, height, fps, background=DEFAULT_BACKGROUND,
                 f"pad={size}:(ow-iw)/2:(oh-ih)/2:black,"
             )
         else:
-            return _build_framed_graph(width, height, fps, background, shadow, margin)
+            return _build_framed_graph(
+                width, height, fps, background, shadow, margin, darkness)
     elif mode == "cortar":
         chain = (
             f"[0:v]scale={size}:force_original_aspect_ratio=increase,"
@@ -83,23 +98,24 @@ def build_filter_graph(mode, width, height, fps, background=DEFAULT_BACKGROUND,
     return f"{chain}{_OUTPUT},fps={fps}[v]"
 
 
-def _build_framed_graph(width, height, fps, background, shadow, margin):
+def _build_framed_graph(width, height, fps, background, shadow, margin, darkness=0):
     size = f"{width}:{height}"
-    inset = _inset(width, height, margin)
+    inset = _inset(width, height, margin)  # negativo: el album art desborda el cuadro
     box = f"{width - 2 * inset}:{height - 2 * inset}"
+    darken = _darken_filter(darkness)
     parts = []
 
     if background == "desenfocado":
         parts.append("[0:v]split[a][b]")
         parts.append(
             f"[a]scale={size}:force_original_aspect_ratio=increase,"
-            f"crop={size},gblur=sigma={_blur_sigma(width, height):.1f},format=rgba[bg]"
+            f"crop={size},gblur=sigma={_blur_sigma(width, height):.1f},format=rgba{darken}[bg]"
         )
         source = "[b]"
     elif background == "personalizado":
         parts.append(
             f"[2:v]scale={size}:force_original_aspect_ratio=increase,"
-            f"crop={size},format=rgba[bg]"
+            f"crop={size},format=rgba{darken}[bg]"
         )
         source = "[0:v]"
     elif background == "ninguno":
@@ -137,7 +153,7 @@ def _build_framed_graph(width, height, fps, background, shadow, margin):
 
 
 def render_preview(image, mode, width, height, background=DEFAULT_BACKGROUND,
-                   shadow=False, margin=0, background_image=None):
+                   shadow=False, margin=0, background_image=None, darkness=0):
     """Devuelve una imagen PIL de width x height con el mismo ajuste del video."""
     # Se trabaja en RGBA para conservar la transparencia; al final se compone sobre negro
     image = ImageOps.exif_transpose(image).convert("RGBA")
@@ -160,8 +176,10 @@ def render_preview(image, mode, width, height, background=DEFAULT_BACKGROUND,
     else:
         raise ValueError(f"Fondo desconocido: {background}")
     canvas = _flatten(canvas)
+    if darkness and background != DEFAULT_BACKGROUND:
+        canvas = _darken(canvas, darkness)
 
-    inset = _inset(width, height, margin)
+    inset = _inset(width, height, margin)  # negativo: el album art desborda el cuadro
     art = ImageOps.contain(image, (width - 2 * inset, height - 2 * inset), Image.LANCZOS)
     x, y = (width - art.width) // 2, (height - art.height) // 2
 
@@ -176,8 +194,17 @@ def render_preview(image, mode, width, height, background=DEFAULT_BACKGROUND,
         mask = mask.filter(ImageFilter.GaussianBlur(sigma))
         canvas.paste((0, 0, 0, 255), (x - spread - pad, y - spread - pad + offset), mask)
 
-    canvas.alpha_composite(art, (x, y))
-    return canvas.convert("RGB")
+    # paste admite posiciones negativas (album art más grande que el cuadro) y usa el
+    # alfa del album art como máscara
+    result = canvas.convert("RGB")
+    result.paste(art, (x, y), art)
+    return result
+
+
+def _darken(image, darkness):
+    """Multiplica el color por (1 - oscuridad), igual que el filtro de FFmpeg."""
+    rgb = ImageEnhance.Brightness(image.convert("RGB")).enhance(1 - darkness / 100)
+    return rgb.convert("RGBA")
 
 
 def _flatten(image):

@@ -44,11 +44,22 @@ class FileSlot(QGroupBox):
         self.buttons_layout.addWidget(self.btn_choose)
         self.buttons_layout.addWidget(self.btn_remove)
 
+        # El texto va en una columna para que los hijos puedan poner más widgets debajo
+        self.info_layout = QVBoxLayout()
+        self.info_layout.setSpacing(2)
+        self.info_layout.addStretch(1)
+        self.info_layout.addWidget(self.info)
+        self.info_layout.addStretch(1)
+
         layout = QHBoxLayout(self)
         layout.addWidget(self.thumbnail)
-        layout.addWidget(self.info, 1)
+        layout.addLayout(self.info_layout, 1)
         layout.addLayout(self.buttons_layout)
         self.retranslate()
+
+    def add_info_widget(self, widget):
+        """Agrega un widget debajo del texto de información."""
+        self.info_layout.insertWidget(self.info_layout.count() - 1, widget)
 
     def retranslate(self):
         self.setTitle(tr(self.title_key))

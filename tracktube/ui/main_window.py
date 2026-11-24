@@ -14,7 +14,8 @@ from PySide6.QtWidgets import (
 from tracktube.config import APP_NAME, AUDIO_EXTENSIONS, DEFAULT_EXPORT_DIR, IMAGE_EXTENSIONS
 from tracktube.core import export_path, media_info, presets
 from tracktube.core.fit_modes import (
-    BACKGROUNDS, DEFAULT_BACKGROUND, DEFAULT_FIT_MODE, FIT_MODES, MAX_MARGIN, render_preview,
+    BACKGROUNDS, DEFAULT_BACKGROUND, DEFAULT_FIT_MODE, FIT_MODES, MAX_DARKNESS, MAX_MARGIN,
+    MIN_MARGIN, render_preview,
 )
 from tracktube.core.image_export import IMAGE_FILTERS, resolve_image_path, save_image
 from tracktube.i18n import DEFAULT_LANGUAGE, LANGUAGES, get_language, set_language, tr
@@ -199,9 +200,14 @@ class MainWindow(QMainWindow):
         background_layout.addWidget(self.btn_background)
         background_layout.addWidget(self.label_background_file, 1)
 
+        # Siempre visible; se habilita solo cuando hay un fondo
+        self.spin_darkness = QSpinBox()
+        self.spin_darkness.setRange(0, MAX_DARKNESS)
+        self.spin_darkness.setSuffix(" %")
+
         self.check_shadow = QCheckBox()
         self.spin_margin = QSpinBox()
-        self.spin_margin.setRange(0, MAX_MARGIN)
+        self.spin_margin.setRange(MIN_MARGIN, MAX_MARGIN)  # negativo: acerca la imagen
         self.spin_margin.setSuffix(" %")
         self.btn_margin_reset = QToolButton()
         self.btn_margin_reset.setText("✕")
@@ -220,6 +226,7 @@ class MainWindow(QMainWindow):
         self.label_resolution = QLabel()
         self.label_fit = QLabel()
         self.label_background = QLabel()
+        self.label_darkness = QLabel()
         self.label_margin = QLabel()
         self.label_fps = QLabel()
 
@@ -233,12 +240,14 @@ class MainWindow(QMainWindow):
         grid.addWidget(self.label_background, 3, 0)
         grid.addWidget(self.combo_background, 3, 1, 1, 2)
         grid.addWidget(self.background_row, 4, 1, 1, 2)
-        grid.addWidget(self.check_shadow, 5, 0, 1, 3)
-        grid.addWidget(self.label_margin, 6, 0)
-        grid.addWidget(self.spin_margin, 6, 1)
-        grid.addWidget(self.btn_margin_reset, 6, 2)
-        grid.addWidget(self.label_fps, 7, 0)
-        grid.addLayout(fps_layout, 7, 1, 1, 2)
+        grid.addWidget(self.label_darkness, 5, 0)
+        grid.addWidget(self.spin_darkness, 5, 1)
+        grid.addWidget(self.check_shadow, 6, 0, 1, 3)
+        grid.addWidget(self.label_margin, 7, 0)
+        grid.addWidget(self.spin_margin, 7, 1)
+        grid.addWidget(self.btn_margin_reset, 7, 2)
+        grid.addWidget(self.label_fps, 8, 0)
+        grid.addLayout(fps_layout, 8, 1, 1, 2)
 
         self.combo_ratio.currentIndexChanged.connect(self._on_ratio_changed)
         self.orientation_group.buttonClicked.connect(self._on_ratio_changed)
@@ -247,6 +256,7 @@ class MainWindow(QMainWindow):
         self.combo_fit.currentIndexChanged.connect(self._on_options_changed)
         self.combo_background.currentIndexChanged.connect(self._on_options_changed)
         self.check_shadow.toggled.connect(self._on_options_changed)
+        self.spin_darkness.valueChanged.connect(self._on_options_changed)
         self.spin_margin.valueChanged.connect(self._on_options_changed)
         return self.group_settings
 
@@ -345,6 +355,9 @@ class MainWindow(QMainWindow):
         self._retranslate_combo(self.combo_background, "background")
         self.btn_background.setText(tr("settings.choose_background"))
         self._update_background_label()
+        self.label_darkness.setText(tr("settings.darkness"))
+        self.label_darkness.setToolTip(tr("settings.darkness_tip"))
+        self.spin_darkness.setToolTip(tr("settings.darkness_tip"))
         self.check_shadow.setText(tr("settings.shadow"))
         self.label_margin.setText(tr("settings.margin"))
         self.spin_margin.setToolTip(tr("settings.margin_tip"))
@@ -415,6 +428,7 @@ class MainWindow(QMainWindow):
                 logger.info("Embedded image found in the audio tags (%s, %d KB)",
                             self._metadata_cover.mime, len(self._metadata_cover.data) // 1024)
         self.slot_image.set_metadata_cover_available(self._metadata_cover is not None)
+        self.slot_audio.set_embedded_cover(self._metadata_cover)
         self._update_short_warning()
         self._update_export_enabled()
 
@@ -484,13 +498,17 @@ class MainWindow(QMainWindow):
                        self.label_margin, self.spin_margin, self.btn_margin_reset,
                        self.background_row):
             widget.setEnabled(framed)
+        # La oscuridad se muestra siempre, pero solo se habilita si hay un fondo que oscurecer
+        has_background = framed and background != DEFAULT_BACKGROUND
+        self.label_darkness.setEnabled(has_background)
+        self.spin_darkness.setEnabled(has_background)
         self.background_row.setVisible(background == "personalizado")
-        logger.debug("Options: fit=%s background=%s shadow=%s margin=%d%%",
-                     fit_mode, background, self.check_shadow.isChecked(),
-                     self.spin_margin.value())
+        logger.debug("Options: fit=%s background=%s darkness=%d%% shadow=%s margin=%d%%",
+                     fit_mode, background, self.spin_darkness.value(),
+                     self.check_shadow.isChecked(), self.spin_margin.value())
         self.preview.set_options(
             fit_mode, background, self.check_shadow.isChecked(),
-            self.spin_margin.value(), self._background_image)
+            self.spin_margin.value(), self._background_image, self.spin_darkness.value())
 
     def _export_preview_image(self):
         """Guarda la vista previa como JPG (por defecto) o PNG con la resolución del video."""
@@ -501,7 +519,8 @@ class MainWindow(QMainWindow):
         start_dir = export_path.build_path(self.input_folder.text(), "x.mp4").parent
         if not start_dir.is_dir():
             start_dir = Path.home()
-        name = Path(self.slot_audio.path).stem if self.slot_audio.path else "preview"
+        # El nombre sugerido es el mismo que tiene el campo de nombre de archivo del video
+        name = Path(self.input_filename.text().strip()).stem or "preview"
         path, selected_filter = QFileDialog.getSaveFileName(
             self, tr("preview.export_dialog"), str(start_dir / f"{name}.jpg"), IMAGE_FILTERS)
         if not path:
@@ -513,7 +532,7 @@ class MainWindow(QMainWindow):
             image = render_preview(
                 self._image, self.combo_fit.currentData(), width, height,
                 self.combo_background.currentData(), self.check_shadow.isChecked(),
-                self.spin_margin.value(), self._background_image)
+                self.spin_margin.value(), self._background_image, self.spin_darkness.value())
             save_image(image, target)
         except OSError as e:
             logger.error("Could not save the preview image: %s", e)
@@ -621,10 +640,11 @@ class MainWindow(QMainWindow):
                 return
         self._output = output
         logger.info("Export requested: ratio=%s %dp %s fps, fit=%s, background=%s, "
-                    "shadow=%s, margin=%d%%",
+                    "darkness=%d%%, shadow=%s, margin=%d%%",
                     self._current_ratio(), self.combo_resolution.currentData(),
                     self.fps_group.checkedId(), self.combo_fit.currentData(), background,
-                    self.check_shadow.isChecked(), self.spin_margin.value())
+                    self.spin_darkness.value(), self.check_shadow.isChecked(),
+                    self.spin_margin.value())
         self._worker = ExportWorker({
             "image": self.slot_image.path,
             "audio": self.slot_audio.path,
@@ -636,6 +656,7 @@ class MainWindow(QMainWindow):
             "duration": self._duration,
             "background": background,
             "background_image": self._background_path,
+            "darkness": self.spin_darkness.value(),
             "shadow": self.check_shadow.isChecked(),
             "margin": self.spin_margin.value(),
         }, self)
@@ -688,6 +709,7 @@ class MainWindow(QMainWindow):
         self._set_combo_data(self.combo_fit, s.value("fit_mode", DEFAULT_FIT_MODE, type=str))
         self._set_combo_data(self.combo_background,
                              s.value("background", DEFAULT_BACKGROUND, type=str))
+        self.spin_darkness.setValue(s.value("darkness", 0, type=int))
         self.check_shadow.setChecked(s.value("shadow", False, type=bool))
         self.spin_margin.setValue(s.value("margin", 0, type=int))
         button = self.fps_group.button(s.value("fps", presets.DEFAULT_FPS, type=int))
@@ -723,6 +745,7 @@ class MainWindow(QMainWindow):
         self.combo_fit.currentIndexChanged.connect(self._save_settings)
         self.combo_background.currentIndexChanged.connect(self._save_settings)
         self.check_shadow.toggled.connect(self._save_settings)
+        self.spin_darkness.valueChanged.connect(self._save_settings)
         self.spin_margin.valueChanged.connect(self._save_settings)
         self.fps_group.idClicked.connect(self._save_settings)
         self.input_folder.textChanged.connect(self._save_settings)
@@ -740,6 +763,7 @@ class MainWindow(QMainWindow):
         s.setValue("fit_mode", self.combo_fit.currentData())
         s.setValue("background", self.combo_background.currentData())
         s.setValue("background_image", self._background_path or "")
+        s.setValue("darkness", self.spin_darkness.value())
         s.setValue("shadow", self.check_shadow.isChecked())
         s.setValue("margin", self.spin_margin.value())
         s.setValue("fps", self.fps_group.checkedId())

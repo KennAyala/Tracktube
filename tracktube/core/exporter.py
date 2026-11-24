@@ -33,7 +33,7 @@ def get_ffmpeg_exe():
 
 def export_video(image, audio, output, aspect_ratio, short_side, fps, fit_mode,
                  duration, background="ninguno", background_image=None, shadow=False,
-                 margin=0, on_progress=None, cancel_event=None):
+                 margin=0, darkness=0, on_progress=None, cancel_event=None):
     """Ejecuta FFmpeg y reporta el progreso (0-100) mediante on_progress.
 
     Bloqueante: pensado para correr en un hilo. Si cancel_event se activa,
@@ -45,7 +45,7 @@ def export_video(image, audio, output, aspect_ratio, short_side, fps, fit_mode,
         transparent = media_info.has_transparency(source)
     cmd = build_command(ffmpeg_exe, image, audio, output,
                         aspect_ratio, short_side, fps, fit_mode,
-                        background, background_image, shadow, margin, transparent)
+                        background, background_image, shadow, margin, transparent, darkness)
 
     logger.info("Export started: %s", output)
     logger.debug("Album art transparency: %s", transparent)

@@ -30,6 +30,7 @@ class PreviewWidget(QGroupBox):
         self._shadow = False
         self._margin = 0
         self._background_image = None
+        self._darkness = 0
 
         self.canvas = QLabel()
         self.canvas.setFixedSize(PREVIEW_BOX, PREVIEW_BOX)
@@ -59,12 +60,13 @@ class PreviewWidget(QGroupBox):
         self._ratio = (ratio_w, ratio_h)
         self._refresh()
 
-    def set_options(self, mode, background, shadow, margin, background_image):
+    def set_options(self, mode, background, shadow, margin, background_image, darkness=0):
         self._mode = mode
         self._background = background
         self._shadow = shadow
         self._margin = margin
         self._background_image = background_image
+        self._darkness = darkness
         self._refresh()
 
     def _refresh(self):
@@ -82,5 +84,5 @@ class PreviewWidget(QGroupBox):
         else:
             pixmap = pil_to_pixmap(render_preview(
                 self._image, self._mode, width, height, self._background,
-                self._shadow, self._margin, self._background_image))
+                self._shadow, self._margin, self._background_image, self._darkness))
         self.canvas.setPixmap(pixmap)
