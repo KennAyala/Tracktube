@@ -16,7 +16,8 @@ Reference: [Recommended upload encoding settings](https://support.google.com/you
 - **FPS:** Minimum (1), 15, 24, 30 and 60 (default).
 - **Image fit:** Fit, Crop or Stretch.
 - With *Fit*: **background** (none, blurred album art or a custom image), album art **shadow** and a **margin** that moves the album art away from the edge.
-- Editable **export path** (default `exports/{uuid}.mp4`) and a button to change the folder.
+- Editable **export path** (default `exports/{uuid}.mp4`), a button to change the folder and a refresh button that generates a new UUID. The UUID changes every time the app opens and after each export; a file name you typed yourself is kept.
+- Warns you before exporting if a video already exists at the chosen path and will be replaced.
 - Progress bar, cancel button and a completion message with a shortcut to the folder.
 - **YouTube Short warning** when the video lasts 3:00 or less and the aspect ratio is not horizontal.
 - Interface in **English** (default) and **Spanish**.
@@ -39,6 +40,12 @@ cd tracktube
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
+
+### Why a virtual environment?
+
+You need Python installed, but its libraries (PySide6, Pillow, ...) are not part of it. `python -m venv .venv` uses your Python to create a `.venv` folder with an isolated copy of it, and the install step puts the dependencies there so they do not mix with other projects. `.\.venv\Scripts\python.exe` is simply the Python inside that folder, so it can run the app without activating anything.
+
+If you prefer, you can skip the virtual environment and install the dependencies in your own Python (`python -m pip install -r requirements.txt`), then run `python main.py`. You can also activate the environment first (`.\.venv\Scripts\Activate.ps1`) and use `python main.py`.
 
 ## Usage
 
@@ -77,7 +84,7 @@ Dimensions are computed from the short side and rounded to even numbers (a `yuv4
 
 ## Saved settings
 
-Options and the export path are stored with `QSettings` (on Windows, in the registry under `HKEY_CURRENT_USER\Software\Tracktube`). If the saved path used a generated name (uuid), a new one is assigned when the app starts so the previous export is not overwritten; a name typed by hand is kept.
+Options and the export path are stored with `QSettings` (on Windows, in the registry under `HKEY_CURRENT_USER\Software\Tracktube`). If the saved path uses a UUID as its file name, a new UUID is assigned every time the app starts so the previous export is not overwritten; a name typed by hand is kept.
 
 ## Project structure
 
@@ -123,6 +130,8 @@ What they cover:
 | `test_fit_modes.py` | FFmpeg filters and Pillow preview for each fit, background, shadow and margin |
 | `test_exporter.py` | Real exports: checks H.264 High, `yuv420p`, BT.709, size, fps, AAC 48 kHz stereo, progress, cancellation and logging |
 | `test_export_path.py` | Default path, relative path resolution, `.mp4` extension and folder change |
+| `test_main_window.py` | UI (headless): UUID renewal on start and after exporting, refresh button, overwrite confirmation |
+| `test_media_info.py` | Transparency detection for PNG images |
 | `test_i18n.py` | Same keys in English and Spanish, default language |
 | `test_log.py` | Message forwarding to the log panel |
 
@@ -136,6 +145,8 @@ What they cover:
 - [ ] The Short warning shows for audio of 3:00 or less in 1:1 or vertical, and hides in horizontal or above 3:00.
 - [ ] Switching between English and Spanish translates the whole interface.
 - [ ] Closing and reopening the app keeps the settings and export path.
+- [ ] The UUID in the export path changes when the app opens, after each export and when clicking the refresh button.
+- [ ] Exporting to a path that already exists shows a warning with Replace and Cancel; Cancel leaves the file untouched.
 - [ ] Export, cancel halfway, and export again.
 - [ ] Open the resulting MP4 and confirm it matches the preview.
 - [ ] The **Log** button at the top opens the panel on the right, and it shows the FFmpeg command and progress.

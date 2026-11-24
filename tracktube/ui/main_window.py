@@ -8,7 +8,7 @@ from PySide6.QtGui import QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QButtonGroup, QCheckBox, QComboBox, QFileDialog, QGridLayout, QGroupBox, QHBoxLayout,
     QLabel, QLineEdit, QMainWindow, QMessageBox, QProgressBar, QPushButton, QRadioButton,
-    QSpinBox, QToolButton, QVBoxLayout, QWidget,
+    QSpinBox, QStyle, QToolButton, QVBoxLayout, QWidget,
 )
 
 from tracktube.config import APP_NAME, AUDIO_EXTENSIONS, IMAGE_EXTENSIONS
@@ -240,12 +240,15 @@ class MainWindow(QMainWindow):
 
         self.label_path = QLabel()
         self.input_path = QLineEdit(export_path.new_default_path())
+        self.btn_refresh_uuid = QToolButton()
+        self.btn_refresh_uuid.setIcon(self.style().standardIcon(QStyle.SP_BrowserReload))
+        self.btn_refresh_uuid.clicked.connect(self._refresh_uuid)
         self.btn_folder = QPushButton()
         self.btn_folder.clicked.connect(self._change_folder)
         path_row = QHBoxLayout()
         path_row.addWidget(self.input_path, 1)
+        path_row.addWidget(self.btn_refresh_uuid)
         path_row.addWidget(self.btn_folder)
-        self._generated_name = Path(self.input_path.text()).name
 
         self.btn_export = QPushButton()
         self.btn_export.clicked.connect(self._start_export)
@@ -305,6 +308,7 @@ class MainWindow(QMainWindow):
 
         self.group_export.setTitle(tr("export.title"))
         self.label_path.setText(tr("export.path"))
+        self.btn_refresh_uuid.setToolTip(tr("export.new_uuid"))
         self.btn_folder.setText(tr("export.change_folder"))
         self.btn_export.setText(tr("export.button"))
         self.btn_cancel.setText(tr("export.cancel"))
@@ -445,12 +449,29 @@ class MainWindow(QMainWindow):
             self.input_path.setText(
                 export_path.change_folder(self.input_path.text(), folder))
 
-    def _renew_default_name(self):
-        """Si el nombre sigue siendo el uuid generado, asigna uno nuevo."""
-        path = Path(self.input_path.text().strip())
-        if path.name == self._generated_name:
-            self._generated_name = f"{uuid.uuid4()}.mp4"
-            self.input_path.setText(str(path.with_name(self._generated_name)))
+    def _refresh_uuid(self):
+        """Cambia el nombre del archivo por un uuid nuevo, conservando la carpeta."""
+        new_name = f"{uuid.uuid4()}.mp4"
+        logger.debug("New UUID: %s", new_name)
+        try:
+            self.input_path.setText(
+                str(Path(self.input_path.text().strip()).with_name(new_name)))
+        except ValueError:  # ruta vacía o sin nombre de archivo
+            self.input_path.setText(export_path.new_default_path())
+
+    def _renew_uuid(self):
+        """Si el nombre del archivo es un uuid, asigna uno nuevo; un nombre propio se respeta."""
+        if UUID_PATTERN.match(Path(self.input_path.text().strip()).stem):
+            self._refresh_uuid()
+
+    def _confirm_overwrite(self, output):
+        """Avisa que el archivo ya existe y será reemplazado. Devuelve True si se continúa."""
+        box = QMessageBox(QMessageBox.Warning, APP_NAME, tr("msg.overwrite", path=output), parent=self)
+        replace_button = box.addButton(tr("msg.replace"), QMessageBox.AcceptRole)
+        cancel_button = box.addButton(tr("export.cancel"), QMessageBox.RejectRole)
+        box.setDefaultButton(cancel_button)
+        box.exec()
+        return box.clickedButton() is replace_button
 
     # --- exportación -----------------------------------------------------------
 
@@ -478,6 +499,11 @@ class MainWindow(QMainWindow):
             return
 
         output = export_path.resolve_path(self.input_path.text())
+        if output.exists():
+            logger.warning("Output file already exists: %s", output)
+            if not self._confirm_overwrite(output):
+                logger.info("Export cancelled by the user (file not replaced)")
+                return
         self._output = output
         logger.info("Export requested: ratio=%s %dp %s fps, fit=%s, background=%s, "
                     "shadow=%s, margin=%d%%",
@@ -530,7 +556,7 @@ class MainWindow(QMainWindow):
         box.exec()
         if box.clickedButton() is open_button:
             os.startfile(self._output.parent)
-        self._renew_default_name()
+        self._renew_uuid()
 
     def _on_export_failed(self, message):
         logger.error("Export failed: %s", message)
@@ -564,15 +590,11 @@ class MainWindow(QMainWindow):
         if background_path and Path(background_path).is_file():
             self._set_background_image(background_path)
 
-        # Un nombre generado (uuid) no se reutiliza para no sobrescribir
-        # la exportación anterior; un nombre escrito a mano sí se respeta.
+        # Al abrir la app el uuid siempre es nuevo; un nombre escrito a mano se respeta.
         saved_path = s.value("export_path", "", type=str).strip()
         if saved_path:
-            path = Path(saved_path)
-            if UUID_PATTERN.match(path.stem):
-                self._generated_name = f"{uuid.uuid4()}.mp4"
-                path = path.with_name(self._generated_name)
-            self.input_path.setText(str(path))
+            self.input_path.setText(saved_path)
+            self._renew_uuid()
 
     @staticmethod
     def _set_combo_data(combo, value):
