@@ -23,6 +23,13 @@ def test_filtro_con_fondo_sombra_y_margen(background, shadow):
     assert ("gblur" in graph) == (background == "desenfocado" or shadow)
 
 
+def test_sombra_crece_y_se_difumina_mas():
+    graph = build_filter_graph("ajustar", 1920, 1080, 30, shadow=True)
+    # sigma = 3% del lado corto, crece 1% por lado
+    assert "gblur=sigma=32.4[shadow]" in graph
+    assert "scale=iw+22:ih+22" in graph
+
+
 def test_margen_reduce_el_album_art():
     # 10% de 1080 = 108 px por lado
     graph = build_filter_graph("ajustar", 1920, 1080, 30, margin=10)

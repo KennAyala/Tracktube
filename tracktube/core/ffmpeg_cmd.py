@@ -14,7 +14,7 @@ def build_command(ffmpeg_exe, image, audio, output, aspect_ratio, short_side, fp
     use_background_image = fit_mode == "ajustar" and background == "personalizado"
 
     command = [
-        ffmpeg_exe, "-hide_banner", "-loglevel", "error", "-y",
+        ffmpeg_exe, "-hide_banner", "-loglevel", "info", "-y",
         # La imagen entra a 1 fps; el filtro `fps` la repite al final
         "-loop", "1", "-framerate", "1", "-i", str(image),
         "-i", str(audio),

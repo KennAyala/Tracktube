@@ -34,6 +34,11 @@ STRINGS = {
         "settings.shadow": "Add shadow to album art",
         "settings.margin": "Margin",
         "settings.margin_tip": "Distance between the album art and the edge of the video",
+        "settings.margin_reset": "Reset margin",
+        "warning.short": "The final video may end up as a YouTube Short",
+        "warning.short_hint": "Use a video longer than 3:00 or a horizontal aspect ratio "
+                              "(not 1:1 or vertical).",
+        "log.button": "Log",
         "settings.fps": "FPS",
         "settings.fps_min": "Minimum ({fps} fps)",
         "export.title": "Export",
@@ -83,6 +88,11 @@ STRINGS = {
         "settings.shadow": "Agregar sombra a la carátula",
         "settings.margin": "Margen",
         "settings.margin_tip": "Distancia entre la carátula y el borde del video",
+        "settings.margin_reset": "Restablecer margen",
+        "warning.short": "El vídeo final tiene la posibilidad de terminar como un YouTube Short",
+        "warning.short_hint": "Debe ser un vídeo más largo de 3:00 o tener un aspect ratio "
+                              "horizontal (no 1:1 ni vertical).",
+        "log.button": "Log",
         "settings.fps": "FPS",
         "settings.fps_min": "Mínimo ({fps} fps)",
         "export.title": "Exportar",

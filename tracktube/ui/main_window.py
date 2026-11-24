@@ -17,11 +17,18 @@ from tracktube.core.fit_modes import (
     BACKGROUNDS, DEFAULT_BACKGROUND, DEFAULT_FIT_MODE, FIT_MODES, MAX_MARGIN,
 )
 from tracktube.i18n import DEFAULT_LANGUAGE, LANGUAGES, get_language, set_language, tr
+from tracktube.log import logger
 from tracktube.ui.export_worker import ExportWorker
 from tracktube.ui.file_slot import FileSlot
+from tracktube.ui.log_panel import LogPanel
 from tracktube.ui.preview_widget import PreviewWidget, pil_to_pixmap
 
 UUID_PATTERN = re.compile(r"^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$")
+
+SHORT_WARNING_STYLE = (
+    "QLabel { background: #fff3cd; color: #664d03; border: 1px solid #ffda6a;"
+    " border-radius: 4px; padding: 6px; }"
+)
 
 
 def format_duration(seconds):
@@ -51,6 +58,11 @@ class MainWindow(QMainWindow):
         self.settings = settings or QSettings(APP_NAME, APP_NAME)
         set_language(self.settings.value("language", DEFAULT_LANGUAGE, type=str))
 
+        # El panel de log se crea primero para registrar desde el arranque
+        self.log_panel = LogPanel()
+        self.log_panel.hide()
+        logger.info("Tracktube started (language=%s)", get_language())
+
         self._loading = True
         self._image = None
         self._duration = 0
@@ -66,6 +78,17 @@ class MainWindow(QMainWindow):
 
         self.preview = PreviewWidget()
 
+        self.label_short_warning = QLabel()
+        self.label_short_warning.setWordWrap(True)
+        self.label_short_warning.setStyleSheet(SHORT_WARNING_STYLE)
+        self.label_short_warning.hide()
+
+        self.btn_log = QPushButton()
+        self.btn_log.setCheckable(True)
+        self.btn_log.setFlat(True)
+        self.btn_log.setFixedHeight(20)
+        self.btn_log.toggled.connect(self._toggle_log)
+
         central = QWidget()
         self.setCentralWidget(central)
         root = QVBoxLayout(central)
@@ -76,15 +99,19 @@ class MainWindow(QMainWindow):
         left.addWidget(self.slot_image)
         left.addWidget(self.slot_audio)
         left.addWidget(self._build_settings())
+        left.addWidget(self.label_short_warning)
         left.addWidget(self._build_export())
         left.addStretch(1)
         content.addLayout(left, 1)
         content.addWidget(self.preview)
         root.addLayout(content)
+        root.addWidget(self.log_panel)
+        root.addWidget(self.btn_log)
 
         self._load_settings()
         self._connect_persistence()
         self._loading = False
+        logger.debug("Settings loaded")
         self.retranslate_ui()
         self._on_ratio_changed()
         self._on_options_changed()
@@ -112,8 +139,10 @@ class MainWindow(QMainWindow):
 
         # Aspect ratio + orientación (horizontal primero, por defecto)
         self.combo_ratio = QComboBox()
-        self.combo_ratio.addItems(presets.BASE_ASPECT_RATIOS)
-        self.combo_ratio.setCurrentText(presets.DEFAULT_ASPECT_RATIO)
+        for base_ratio in presets.BASE_ASPECT_RATIOS:
+            self.combo_ratio.addItem(base_ratio, base_ratio)
+        self.combo_ratio.setCurrentIndex(
+            self.combo_ratio.findData(presets.DEFAULT_ASPECT_RATIO))
         color = self.palette().color(self.foregroundRole())
         self.btn_horizontal = QToolButton()
         self.btn_vertical = QToolButton()
@@ -160,6 +189,9 @@ class MainWindow(QMainWindow):
         self.spin_margin = QSpinBox()
         self.spin_margin.setRange(0, MAX_MARGIN)
         self.spin_margin.setSuffix(" %")
+        self.btn_margin_reset = QToolButton()
+        self.btn_margin_reset.setText("✕")
+        self.btn_margin_reset.clicked.connect(lambda: self.spin_margin.setValue(0))
 
         self.fps_group = QButtonGroup(self)
         fps_layout = QHBoxLayout()
@@ -190,11 +222,13 @@ class MainWindow(QMainWindow):
         grid.addWidget(self.check_shadow, 5, 0, 1, 3)
         grid.addWidget(self.label_margin, 6, 0)
         grid.addWidget(self.spin_margin, 6, 1)
+        grid.addWidget(self.btn_margin_reset, 6, 2)
         grid.addWidget(self.label_fps, 7, 0)
         grid.addLayout(fps_layout, 7, 1, 1, 2)
 
-        self.combo_ratio.currentTextChanged.connect(self._on_ratio_changed)
+        self.combo_ratio.currentIndexChanged.connect(self._on_ratio_changed)
         self.orientation_group.buttonClicked.connect(self._on_ratio_changed)
+        self.fps_group.idClicked.connect(lambda fps: logger.debug("FPS: %s", fps))
         self.combo_resolution.currentIndexChanged.connect(self._update_dimensions)
         self.combo_fit.currentIndexChanged.connect(self._on_options_changed)
         self.combo_background.currentIndexChanged.connect(self._on_options_changed)
@@ -239,6 +273,7 @@ class MainWindow(QMainWindow):
 
     def _on_language_changed(self):
         set_language(self.combo_language.currentData())
+        logger.info("Language changed to %s", get_language())
         self.retranslate_ui()
         self._save_settings()
 
@@ -263,6 +298,7 @@ class MainWindow(QMainWindow):
         self.label_margin.setText(tr("settings.margin"))
         self.spin_margin.setToolTip(tr("settings.margin_tip"))
         self.label_margin.setToolTip(tr("settings.margin_tip"))
+        self.btn_margin_reset.setToolTip(tr("settings.margin_reset"))
         self.label_fps.setText(tr("settings.fps"))
         for button in self.fps_group.buttons():
             fps = self.fps_group.id(button)
@@ -275,6 +311,8 @@ class MainWindow(QMainWindow):
         self.btn_export.setText(tr("export.button"))
         self.btn_cancel.setText(tr("export.cancel"))
         self._update_progress_format()
+        self.btn_log.setText(tr("log.button"))
+        self._update_short_warning()
 
     @staticmethod
     def _retranslate_combo(combo, prefix):
@@ -286,51 +324,84 @@ class MainWindow(QMainWindow):
     def _load_image(self, path):
         image = media_info.load_image(path)
         self._image = image
+        logger.info("Album art loaded: %s (%d x %d, mode %s)",
+                    path, image.width, image.height, image.mode)
         info = ("slot.image_info", {"width": image.width, "height": image.height})
         return info, pil_to_pixmap(image)
 
     def _load_audio(self, path):
         duration = media_info.get_audio_duration(path)
         self._duration = duration
+        logger.info("Audio track loaded: %s (%.2fs)", path, duration)
         return ("slot.audio_info", {"duration": format_duration(duration)}), None
 
     def _on_image_changed(self):
         if self.slot_image.path is None:
             self._image = None
+            logger.info("Album art removed")
         self.preview.set_image(self._image)
         self._update_export_enabled()
 
     def _on_audio_changed(self):
         if self.slot_audio.path is None:
             self._duration = 0
+            logger.info("Audio track removed")
+        self._update_short_warning()
         self._update_export_enabled()
 
     # --- ajustes ---------------------------------------------------------------
 
     def _current_ratio(self):
         return presets.get_aspect_ratio(
-            self.combo_ratio.currentText(), self.btn_vertical.isChecked())
+            self.combo_ratio.currentData(), self.btn_vertical.isChecked())
 
     def _on_ratio_changed(self, *_):
+        vertical = self.btn_vertical.isChecked()
+        # Los nombres del selector siguen la orientación (16:9 -> 9:16)
+        for index in range(self.combo_ratio.count()):
+            self.combo_ratio.setItemText(
+                index, presets.get_aspect_ratio(self.combo_ratio.itemData(index), vertical))
         # 1:1 no tiene orientación
-        self.btn_horizontal.setEnabled(self.combo_ratio.currentText() != "1:1")
-        self.btn_vertical.setEnabled(self.combo_ratio.currentText() != "1:1")
+        has_orientation = self.combo_ratio.currentData() != "1:1"
+        self.btn_horizontal.setEnabled(has_orientation)
+        self.btn_vertical.setEnabled(has_orientation)
+        logger.debug("Aspect ratio: %s", self._current_ratio())
         self.preview.set_ratio(*presets.ASPECT_RATIOS[self._current_ratio()])
         self._update_dimensions()
+        self._update_short_warning()
 
     def _update_dimensions(self):
         width, height = presets.get_dimensions(
             self._current_ratio(), self.combo_resolution.currentData())
         self.label_dimensions.setText(f"{width} × {height}")
+        logger.debug("Output size: %d x %d", width, height)
+
+    def _update_short_warning(self):
+        """Avisa si el video podría terminar como un YouTube Short."""
+        show = presets.may_be_short(self._duration, self._current_ratio())
+        if show != self.label_short_warning.isVisibleTo(self):
+            logger.warning("YouTube Short warning %s (duration=%.1fs, ratio=%s)",
+                           "shown" if show else "hidden", self._duration, self._current_ratio())
+        self.label_short_warning.setText(
+            f"<b>{tr('warning.short')}</b><br>{tr('warning.short_hint')}")
+        self.label_short_warning.setVisible(show)
+
+    def _toggle_log(self, visible):
+        self.log_panel.setVisible(visible)
+        self.adjustSize()
 
     def _on_options_changed(self, *_):
         fit_mode = self.combo_fit.currentData()
         background = self.combo_background.currentData()
         framed = fit_mode == "ajustar"
         for widget in (self.label_background, self.combo_background, self.check_shadow,
-                       self.label_margin, self.spin_margin, self.background_row):
+                       self.label_margin, self.spin_margin, self.btn_margin_reset,
+                       self.background_row):
             widget.setEnabled(framed)
         self.background_row.setVisible(background == "personalizado")
+        logger.debug("Options: fit=%s background=%s shadow=%s margin=%d%%",
+                     fit_mode, background, self.check_shadow.isChecked(),
+                     self.spin_margin.value())
         self.preview.set_options(
             fit_mode, background, self.check_shadow.isChecked(),
             self.spin_margin.value(), self._background_image)
@@ -353,6 +424,7 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(self, APP_NAME, str(e))
             return
         self._background_path = path
+        logger.info("Custom background loaded: %s", path)
         self._update_background_label()
 
     def _update_background_label(self):
@@ -407,6 +479,11 @@ class MainWindow(QMainWindow):
 
         output = export_path.resolve_path(self.input_path.text())
         self._output = output
+        logger.info("Export requested: ratio=%s %dp %s fps, fit=%s, background=%s, "
+                    "shadow=%s, margin=%d%%",
+                    self._current_ratio(), self.combo_resolution.currentData(),
+                    self.fps_group.checkedId(), self.combo_fit.currentData(), background,
+                    self.check_shadow.isChecked(), self.spin_margin.value())
         self._worker = ExportWorker({
             "image": self.slot_image.path,
             "audio": self.slot_audio.path,
@@ -456,6 +533,7 @@ class MainWindow(QMainWindow):
         self._renew_default_name()
 
     def _on_export_failed(self, message):
+        logger.error("Export failed: %s", message)
         self._set_progress_state("idle", 0)
         QMessageBox.critical(self, APP_NAME, tr("msg.export_failed", error=message))
 
@@ -467,8 +545,8 @@ class MainWindow(QMainWindow):
     def _load_settings(self):
         """Restaura los ajustes y la ruta de exportación del usuario."""
         s = self.settings
-        self.combo_ratio.setCurrentText(
-            s.value("ratio", presets.DEFAULT_ASPECT_RATIO, type=str))
+        self._set_combo_data(self.combo_ratio,
+                             s.value("ratio", presets.DEFAULT_ASPECT_RATIO, type=str))
         if s.value("vertical", False, type=bool):
             self.btn_vertical.setChecked(True)
         self._set_combo_data(self.combo_resolution,
@@ -518,7 +596,7 @@ class MainWindow(QMainWindow):
             return
         s = self.settings
         s.setValue("language", get_language())
-        s.setValue("ratio", self.combo_ratio.currentText())
+        s.setValue("ratio", self.combo_ratio.currentData())
         s.setValue("vertical", self.btn_vertical.isChecked())
         s.setValue("resolution", self.combo_resolution.currentData())
         s.setValue("fit_mode", self.combo_fit.currentData())
@@ -534,4 +612,6 @@ class MainWindow(QMainWindow):
             self._worker.cancel()
             self._worker.wait()
         self._save_settings()
+        logger.info("Tracktube closed")
+        self.log_panel.detach()
         super().closeEvent(event)

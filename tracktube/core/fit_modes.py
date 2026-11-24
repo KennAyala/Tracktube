@@ -31,9 +31,14 @@ def _blur_sigma(width, height):
 
 
 def _shadow_params(width, height):
-    """Devuelve (sigma, relleno, desplazamiento vertical) de la sombra."""
-    sigma = min(width, height) * 0.02
-    return sigma, math.ceil(sigma * 3), round(sigma)
+    """Devuelve (sigma, crecimiento, relleno, desplazamiento vertical) de la sombra.
+
+    El crecimiento agranda la sombra respecto al album art por cada lado y el
+    relleno deja espacio para que el difuminado no se corte.
+    """
+    short = min(width, height)
+    sigma = short * 0.03
+    return sigma, round(short * 0.01), math.ceil(sigma * 3), round(short * 0.02)
 
 
 def _inset(width, height, margin):
@@ -96,10 +101,11 @@ def _build_framed_graph(width, height, fps, background, shadow, margin):
 
     art = f"{source}scale={box}:force_original_aspect_ratio=decrease,format=rgba"
     if shadow:
-        sigma, pad, offset = _shadow_params(width, height)
+        sigma, spread, pad, offset = _shadow_params(width, height)
         parts.append(f"{art},split[art][art_shadow]")
         parts.append(
             f"[art_shadow]colorchannelmixer=rr=0:gg=0:bb=0:aa={_SHADOW_OPACITY},"
+            f"scale=iw+{2 * spread}:ih+{2 * spread},"
             f"pad=iw+{2 * pad}:ih+{2 * pad}:{pad}:{pad}:color=black@0,"
             f"gblur=sigma={sigma:.1f}[shadow]"
         )
@@ -141,11 +147,12 @@ def render_preview(image, mode, width, height, background=DEFAULT_BACKGROUND,
     x, y = (width - art.width) // 2, (height - art.height) // 2
 
     if shadow:
-        sigma, pad, offset = _shadow_params(width, height)
-        mask = Image.new("L", (art.width + 2 * pad, art.height + 2 * pad), 0)
-        mask.paste(round(255 * _SHADOW_OPACITY), (pad, pad, pad + art.width, pad + art.height))
+        sigma, spread, pad, offset = _shadow_params(width, height)
+        shadow_w, shadow_h = art.width + 2 * spread, art.height + 2 * spread
+        mask = Image.new("L", (shadow_w + 2 * pad, shadow_h + 2 * pad), 0)
+        mask.paste(round(255 * _SHADOW_OPACITY), (pad, pad, pad + shadow_w, pad + shadow_h))
         mask = mask.filter(ImageFilter.GaussianBlur(sigma))
-        canvas.paste((0, 0, 0), (x - pad, y - pad + offset), mask)
+        canvas.paste((0, 0, 0), (x - spread - pad, y - spread - pad + offset), mask)
 
     canvas.paste(art, (x, y))
     return canvas

@@ -37,6 +37,9 @@ VIDEO_BITRATES_KBPS = {
     2160: (40000, 60000),
 }
 
+# Duración máxima (en segundos) con la que YouTube puede tratar un video como Short
+SHORTS_MAX_SECONDS = 180
+
 AUDIO_BITRATE_KBPS = 384
 AUDIO_SAMPLE_RATE = 48000
 
@@ -52,6 +55,20 @@ def get_aspect_ratio(base_ratio, vertical):
         return base_ratio
     ratio_w, ratio_h = base_ratio.split(":")
     return f"{ratio_h}:{ratio_w}"
+
+
+def is_horizontal(aspect_ratio):
+    ratio_w, ratio_h = ASPECT_RATIOS[aspect_ratio]
+    return ratio_w > ratio_h
+
+
+def may_be_short(duration, aspect_ratio):
+    """True si el video podría clasificarse como YouTube Short.
+
+    Pasa con un video de 3:00 o menos que no sea horizontal (1:1 o vertical).
+    """
+    return (duration > 0 and round(duration) <= SHORTS_MAX_SECONDS
+            and not is_horizontal(aspect_ratio))
 
 
 def get_dimensions(aspect_ratio, short_side):

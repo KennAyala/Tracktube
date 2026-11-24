@@ -61,6 +61,24 @@ def test_exporta_mp4_con_caracteristicas_de_youtube(
     assert progress and progress[-1] == 100
 
 
+def test_la_exportacion_queda_en_el_log(media, tmp_path):
+    from test_log import capture
+    from tracktube.log import logger
+
+    handler, received = capture()
+    try:
+        export_video(media[0], media[1], tmp_path / "log.mp4", "16:9", 480, 15,
+                     "ajustar", duration=3)
+    finally:
+        logger.removeHandler(handler)
+    text = "\n".join(received)
+    assert "Export started" in text
+    assert "Command:" in text and "libx264" in text
+    assert "ffmpeg: " in text  # salida de FFmpeg
+    assert "Progress: 100%" in text
+    assert "Export finished" in text
+
+
 def test_cancelar_borra_el_archivo(media, tmp_path):
     image, audio = media
     output = tmp_path / "cancelado.mp4"

@@ -33,6 +33,20 @@ def test_orientacion_invierte_el_ratio():
             assert presets.get_aspect_ratio(base, vertical) in presets.ASPECT_RATIOS
 
 
+def test_posible_short():
+    # 3:00 o menos y no horizontal -> posible Short
+    assert presets.may_be_short(180, "9:16")
+    assert presets.may_be_short(59.4, "3:4")
+    assert presets.may_be_short(120, "1:1")
+    assert presets.may_be_short(180.4, "4:5")  # se muestra como 3:00
+    # horizontal, más de 3:00 o sin audio -> no
+    assert not presets.may_be_short(120, "16:9")
+    assert not presets.may_be_short(120, "4:3")
+    assert not presets.may_be_short(181, "9:16")
+    assert not presets.may_be_short(300, "1:1")
+    assert not presets.may_be_short(0, "9:16")
+
+
 def test_bitrate_segun_fps():
     assert presets.get_video_bitrate_kbps(1080, 30) == 8000
     assert presets.get_video_bitrate_kbps(1080, 60) == 12000
