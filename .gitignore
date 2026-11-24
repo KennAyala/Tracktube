@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Empaquetado
+build/
+dist/
+*.spec
+
+# Exportaciones generadas
+exports/*
+!exports/.gitkeep
+
+# IDE / SO
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
