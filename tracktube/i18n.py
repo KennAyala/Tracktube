@@ -118,7 +118,7 @@ STRINGS = {
                                     "con la resolución del video",
         "preview.export_dialog": "Exportar vista previa como imagen",
         "settings.title": "Ajustes",
-        "settings.ratio": "Aspect ratio",
+        "settings.ratio": "Relación de aspecto",
         "settings.horizontal": "Horizontal",
         "settings.vertical": "Vertical",
         "settings.resolution": "Resolución",
@@ -145,8 +145,8 @@ STRINGS = {
                                "un valor negativo agranda la carátula más allá de los bordes",
         "settings.margin_reset": "Restablecer el margen a 0%",
         "warning.short": "El vídeo final tiene la posibilidad de terminar como un YouTube Short",
-        "warning.short_hint": "Debe ser un vídeo más largo de 3:00 o tener un aspect ratio "
-                              "horizontal (no 1:1 ni vertical).",
+        "warning.short_hint": "Debe ser un vídeo más largo de 3:00 o tener una relación de "
+                              "aspecto horizontal (no 1:1 ni vertical).",
         "log.button": "Log",
         "settings.fps": "FPS",
         "settings.fps_min": "Mínimo ({fps} fps)",

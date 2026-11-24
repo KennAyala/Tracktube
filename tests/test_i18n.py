@@ -21,6 +21,15 @@ def test_tr_cambia_con_el_idioma():
     assert i18n.tr("slot.audio") == "Audio track"
 
 
+def test_relacion_de_aspecto_en_espanol():
+    i18n.set_language("es")
+    assert i18n.tr("settings.ratio") == "Relación de aspecto"
+    assert "relación de aspecto horizontal" in i18n.tr("warning.short_hint")
+    assert "aspect ratio" not in i18n.tr("warning.short_hint").lower()
+    i18n.set_language("en")
+    assert i18n.tr("settings.ratio") == "Aspect ratio"  # en inglés no cambia
+
+
 def test_idioma_desconocido_vuelve_al_defecto():
     i18n.set_language("fr")
     assert i18n.get_language() == "en"
