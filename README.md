@@ -12,10 +12,10 @@ Reference: [Recommended upload encoding settings](https://support.google.com/you
 
 ## Features
 
-- Two simple inputs: **Audio track** (wav, flac, mp3, ogg) and **Album art** (jpg, jpeg, png, bmp), in that order, with buttons to add, replace and delete, plus drag and drop.
-- **Audio information:** the Audio track section shows the duration, format, bitrate and bit depth of the file (bit depth only applies to lossless formats such as WAV and FLAC; it shows `—` for MP3 and OGG). Below it, an **Album art in metadata** line says **Yes (width × height)** in green when the file has an image in its tags, or **No** in red when it does not.
+- Two simple inputs: **Audio track** (wav, flac, mp3, ogg, m4a, aac) and **Album art** (jpg, jpeg, png, bmp), in that order, with buttons to add, replace and delete, plus drag and drop.
+- **Audio information:** the Audio track section shows the duration, format, bitrate and bit depth of the file (bit depth only applies to lossless formats such as WAV, FLAC and M4A with ALAC; it shows `—` for MP3, OGG, M4A with AAC and raw AAC). An `.m4a` file is reported as **M4A (AAC)** or **M4A (ALAC)** depending on its codec. Below it, an **Album art in metadata** line says **Yes (width × height)** in green when the file has an image in its tags, or **No** in red when it does not.
 - **Audio preview:** a Play / Stop button to listen to the audio before exporting.
-- **Image from the audio metadata:** when you load an audio file, Tracktube looks for an image in its tags (cover art in MP3 and WAV via ID3, FLAC pictures, and OGG Vorbis / Opus). If there is one, a **Use metadata image** button appears in the Album art section; clicking it uses that image as the album art. It never replaces your image on its own.
+- **Image from the audio metadata:** when you load an audio file, Tracktube looks for an image in its tags (cover art in MP3 and WAV via ID3, FLAC pictures, OGG Vorbis / Opus, and the cover of M4A files). If there is one, a **Use metadata image** button appears in the Album art section; clicking it uses that image as the album art. It never replaces your image on its own.
 - Live **preview** of the frame that will fill the whole video.
 - **Export preview as image:** a button under the preview saves the frame as a **JPG** (default) or **PNG**. It is rendered at the video's resolution and aspect ratio, with the current fit, background, darkness, shadow and margin. The suggested file name is the current **File name** (for example `my-video.mp4` suggests `my-video.jpg`).
 - **PNG transparency is preserved:** transparent areas show the selected background (black when there is none), because MP4 has no alpha channel. The shadow follows the album art silhouette.
@@ -155,6 +155,7 @@ What they cover:
 | `test_exporter.py` | Real exports: checks H.264 High, `yuv420p`, BT.709, size, fps, AAC 48 kHz stereo, progress, cancellation and logging |
 | `test_export_path.py` | Default file name, relative path resolution, `.mp4` extension and folder + name join |
 | `test_main_window.py` | UI (headless): folder and file name fields, UUID renewal on start and after exporting, refresh button, overwrite confirmation, audio info, Play / Stop preview, theme selector, progress status |
+| `test_m4a_and_aac.py` | `.m4a` (AAC and ALAC) and `.aac` support: accepted extensions, drag and drop, info (format, bitrate, bit depth), the cover of M4A files, the UI, and real exports from each format |
 | `test_media_info.py` | Audio info for WAV, FLAC, MP3 and OGG (duration, format, bitrate, bit depth), the image embedded in the tags of real MP3, WAV, FLAC and OGG files, and transparency detection for PNG images |
 | `test_image_export.py` | Choosing JPG or PNG from the extension or the dialog filter, and saving both formats |
 | `test_cover_and_preview_export.py` | UI (headless): the "Use metadata image" button and the export of the preview as an image (format, size, current settings, suggested file name, cancel and errors) |
@@ -183,7 +184,8 @@ What they cover:
 - [ ] The ✕ button next to the margin resets it to 0.
 - [ ] The Short warning shows for audio of 3:00 or less in 1:1 or vertical, and hides in horizontal or above 3:00.
 - [ ] Switching between English and Spanish translates the whole interface.
-- [ ] The Audio track section shows duration, format, bitrate and bit depth (`—` for MP3 and OGG bit depth).
+- [ ] The Audio track section shows duration, format, bitrate and bit depth (`—` for the bit depth of MP3, OGG, M4A with AAC and raw AAC).
+- [ ] `.m4a` (AAC and ALAC) and `.aac` files can be added with the button and by dragging, they play with **Play**, and they export to a video.
 - [ ] **Play** plays the audio and becomes **Stop**; **Stop**, replacing or deleting the audio stops it.
 - [ ] The theme selector offers System (first and default), Light and Dark, and the window changes right away, including the orientation icons.
 - [ ] With the System theme, the app follows the Windows light/dark setting.
@@ -201,7 +203,7 @@ What they cover:
 - Bitrate values are taken from YouTube's recommendations and should be checked against the official documentation from time to time.
 - The Light and Dark themes use Qt's color scheme support, so they need PySide6 6.8 or newer; the System theme follows the Windows setting.
 - The audio preview uses the system audio output, so it needs a working audio device.
-- Images embedded in audio tags are detected in MP3, WAV, FLAC and OGG files. The image is saved to a temporary folder that is deleted when you close the app.
+- Images embedded in audio tags are detected in MP3, WAV, FLAC, OGG and M4A files (a raw `.aac` stream has no tags). The image is saved to a temporary folder that is deleted when you close the app.
 - With 60 fps and high resolutions (for example 4K), encoding long audio files takes noticeably longer.
 - There is no `.exe` packaging yet.
 

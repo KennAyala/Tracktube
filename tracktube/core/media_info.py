@@ -5,6 +5,7 @@ from pathlib import Path
 
 import mutagen
 import mutagen.flac
+import mutagen.mp4
 from PIL import Image, UnidentifiedImageError
 
 from tracktube.i18n import tr
@@ -16,6 +17,7 @@ AUDIO_FORMATS = {
     "WAVE": "WAV",
     "OggVorbis": "OGG Vorbis",
     "OggOpus": "OGG Opus",
+    "AAC": "AAC",  # flujo AAC sin contenedor (.aac)
 }
 
 
@@ -24,7 +26,7 @@ class AudioInfo:
     duration: float          # segundos
     format: str
     bitrate: int | None      # bits por segundo
-    bit_depth: int | None    # solo en formatos sin pérdida (WAV, FLAC)
+    bit_depth: int | None    # solo en formatos sin pérdida (WAV, FLAC, M4A ALAC)
 
 
 def get_audio_info(path):
@@ -37,11 +39,21 @@ def get_audio_info(path):
         raise ValueError(tr("error.audio_read", error=path))
 
     info = audio.info
+    format_name = AUDIO_FORMATS.get(type(audio).__name__, Path(path).suffix.lstrip(".").upper())
+    bitrate = getattr(info, "bitrate", None)
+    bit_depth = getattr(info, "bits_per_sample", None)
+    if isinstance(audio, mutagen.mp4.MP4):
+        # .m4a puede ser AAC (con pérdida) o ALAC (sin pérdida). mutagen informa 16 bits
+        # también para AAC, pero ahí la profundidad de bits no existe.
+        lossless = getattr(info, "codec", "") == "alac"
+        format_name = "M4A (ALAC)" if lossless else "M4A (AAC)"
+        if not lossless:
+            bit_depth = None
     return AudioInfo(
         duration=float(info.length),
-        format=AUDIO_FORMATS.get(type(audio).__name__, Path(path).suffix.lstrip(".").upper()),
-        bitrate=getattr(info, "bitrate", None) or None,
-        bit_depth=getattr(info, "bits_per_sample", None) or None,
+        format=format_name,
+        bitrate=int(bitrate) if bitrate else None,
+        bit_depth=bit_depth or None,
     )
 
 
@@ -70,7 +82,11 @@ def get_embedded_cover(path):
 
     pictures = []  # (tipo, mime, datos)
     tags = audio.tags
-    if hasattr(tags, "getall"):  # ID3
+    if isinstance(tags, mutagen.mp4.MP4Tags):  # M4A: átomo «covr», sin tipo de imagen
+        for cover in tags.get("covr", []):
+            is_png = cover.imageformat == mutagen.mp4.MP4Cover.FORMAT_PNG
+            pictures.append((FRONT_COVER, "image/png" if is_png else "image/jpeg", bytes(cover)))
+    elif hasattr(tags, "getall"):  # ID3
         pictures += [(frame.type, frame.mime, frame.data) for frame in tags.getall("APIC")]
     elif tags is not None:  # comentarios Vorbis
         for encoded in tags.get("metadata_block_picture", []):

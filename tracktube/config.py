@@ -4,7 +4,7 @@ from pathlib import Path
 APP_NAME = "Tracktube"
 
 IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".bmp")
-AUDIO_EXTENSIONS = (".wav", ".flac", ".mp3", ".ogg")
+AUDIO_EXTENSIONS = (".wav", ".flac", ".mp3", ".ogg", ".m4a", ".aac")
 
 # Carpeta base de la app: junto al .exe si está empaquetada, o la raíz del proyecto.
 if getattr(sys, "frozen", False):
