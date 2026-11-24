@@ -13,3 +13,5 @@ else:
     BASE_DIR = Path(__file__).resolve().parent.parent
 
 DEFAULT_EXPORT_DIR = "exports"
+
+ICON_PATH = BASE_DIR / "assets" / "logo.png"

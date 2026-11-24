@@ -1,4 +1,8 @@
-> **Note:** this project was created with the assistance of artificial intelligence (Claude, by Anthropic). The code and documentation were generated and reviewed together with a person.
+> **Note:** this project was created with the assistance of artificial intelligence (Claude, by Anthropic). The code and documentation were generated and reviewed together with a person. The logo was generated with ChatGPT.
+
+<p align="center">
+  <img src="assets/logo.svg" alt="Tracktube logo" width="140">
+</p>
 
 # Tracktube
 
@@ -93,6 +97,7 @@ tracktube/
 ├─ main.py                  # entry point
 ├─ requirements.txt
 ├─ pytest.ini
+├─ assets/                  # logo (logo.svg for docs, logo.png for the window icon)
 ├─ exports/                 # default export folder
 ├─ tracktube/
 │  ├─ config.py             # allowed extensions and base paths
