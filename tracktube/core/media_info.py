@@ -1,7 +1,10 @@
+import base64
+import io
 from dataclasses import dataclass
 from pathlib import Path
 
 import mutagen
+import mutagen.flac
 from PIL import Image, UnidentifiedImageError
 
 from tracktube.i18n import tr
@@ -40,6 +43,71 @@ def get_audio_info(path):
         bitrate=getattr(info, "bitrate", None) or None,
         bit_depth=getattr(info, "bits_per_sample", None) or None,
     )
+
+
+@dataclass
+class EmbeddedCover:
+    data: bytes
+    mime: str
+
+
+FRONT_COVER = 3  # tipo de imagen "portada" en ID3 y FLAC
+
+
+def get_embedded_cover(path):
+    """Busca una imagen en los tags del audio. Devuelve EmbeddedCover o None.
+
+    Lee ID3 (MP3, WAV), imágenes de FLAC y METADATA_BLOCK_PICTURE (OGG Vorbis y Opus).
+    Si hay varias prefiere la portada; si el archivo no se puede leer devuelve None.
+    """
+    try:
+        audio = mutagen.File(path)
+    except Exception:
+        return None
+    if audio is None:
+        return None
+
+    pictures = []  # (tipo, mime, datos)
+    tags = audio.tags
+    if hasattr(tags, "getall"):  # ID3
+        pictures += [(frame.type, frame.mime, frame.data) for frame in tags.getall("APIC")]
+    elif tags is not None:  # comentarios Vorbis
+        for encoded in tags.get("metadata_block_picture", []):
+            try:
+                picture = mutagen.flac.Picture(base64.b64decode(encoded))
+            except (ValueError, mutagen.MutagenError):
+                continue
+            pictures.append((picture.type, picture.mime, picture.data))
+    for picture in getattr(audio, "pictures", None) or []:  # FLAC
+        pictures.append((picture.type, picture.mime, picture.data))
+
+    pictures = [picture for picture in pictures if picture[2]]
+    if not pictures:
+        return None
+    picture_type, mime, data = next(
+        (picture for picture in pictures if picture[0] == FRONT_COVER), pictures[0])
+    return EmbeddedCover(data=bytes(data), mime=mime)
+
+
+def save_embedded_cover(cover, folder):
+    """Guarda la imagen incrustada en `folder` y devuelve su ruta.
+
+    JPG, PNG y BMP se guardan tal cual; otros formatos se convierten a PNG.
+    Lanza ValueError si los datos no son una imagen válida.
+    """
+    folder = Path(folder)
+    try:
+        with Image.open(io.BytesIO(cover.data)) as image:
+            image.load()
+            extension = {"JPEG": ".jpg", "PNG": ".png", "BMP": ".bmp"}.get(image.format)
+            path = folder / f"metadata-cover{extension or '.png'}"
+            if extension:
+                path.write_bytes(cover.data)
+            else:
+                image.save(path, "PNG")
+    except (UnidentifiedImageError, OSError) as e:
+        raise ValueError(tr("error.image_read", error=e)) from e
+    return path
 
 
 def get_audio_duration(path):

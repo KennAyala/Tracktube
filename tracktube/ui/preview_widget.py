@@ -1,6 +1,6 @@
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QImage, QPainter, QPixmap
-from PySide6.QtWidgets import QGroupBox, QLabel, QVBoxLayout
+from PySide6.QtWidgets import QGroupBox, QLabel, QPushButton, QVBoxLayout
 
 from tracktube.core.fit_modes import DEFAULT_BACKGROUND, DEFAULT_FIT_MODE, render_preview
 from tracktube.i18n import tr
@@ -19,6 +19,8 @@ def pil_to_pixmap(image):
 class PreviewWidget(QGroupBox):
     """Muestra cómo se verá el frame que ocupará todo el video."""
 
+    export_requested = Signal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._image = None
@@ -33,16 +35,24 @@ class PreviewWidget(QGroupBox):
         self.canvas.setFixedSize(PREVIEW_BOX, PREVIEW_BOX)
         self.canvas.setAlignment(Qt.AlignCenter)
 
+        self.btn_export_image = QPushButton()
+        self.btn_export_image.setEnabled(False)  # necesita una imagen cargada
+        self.btn_export_image.clicked.connect(self.export_requested)
+
         layout = QVBoxLayout(self)
         layout.addWidget(self.canvas)
+        layout.addWidget(self.btn_export_image)
         self.retranslate()
 
     def retranslate(self):
         self.setTitle(tr("preview.title"))
+        self.btn_export_image.setText(tr("preview.export_image"))
+        self.btn_export_image.setToolTip(tr("preview.export_image_tip"))
         self._refresh()
 
     def set_image(self, image):
         self._image = image
+        self.btn_export_image.setEnabled(image is not None)
         self._refresh()
 
     def set_ratio(self, ratio_w, ratio_h):

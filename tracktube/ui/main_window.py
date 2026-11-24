@@ -1,26 +1,28 @@
 import re
+import tempfile
 import uuid
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, QSize, Qt
 from PySide6.QtGui import QIcon, QPainter, QPalette, QPen, QPixmap
 from PySide6.QtWidgets import (
-    QButtonGroup, QCheckBox, QComboBox, QFileDialog, QGridLayout, QGroupBox, QHBoxLayout,
-    QLabel, QLineEdit, QMainWindow, QMessageBox, QProgressBar, QPushButton, QRadioButton,
-    QSpinBox, QStyle, QToolButton, QVBoxLayout, QWidget,
+    QApplication, QButtonGroup, QCheckBox, QComboBox, QFileDialog, QGridLayout, QGroupBox,
+    QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMessageBox, QProgressBar, QPushButton,
+    QRadioButton, QSpinBox, QStyle, QToolButton, QVBoxLayout, QWidget,
 )
 
 from tracktube.config import APP_NAME, AUDIO_EXTENSIONS, DEFAULT_EXPORT_DIR, IMAGE_EXTENSIONS
 from tracktube.core import export_path, media_info, presets
 from tracktube.core.fit_modes import (
-    BACKGROUNDS, DEFAULT_BACKGROUND, DEFAULT_FIT_MODE, FIT_MODES, MAX_MARGIN,
+    BACKGROUNDS, DEFAULT_BACKGROUND, DEFAULT_FIT_MODE, FIT_MODES, MAX_MARGIN, render_preview,
 )
+from tracktube.core.image_export import IMAGE_FILTERS, resolve_image_path, save_image
 from tracktube.i18n import DEFAULT_LANGUAGE, LANGUAGES, get_language, set_language, tr
 from tracktube.log import logger
 from tracktube.settings import create_settings
-from tracktube.ui.export_worker import ExportWorker
 from tracktube.ui.audio_slot import AudioSlot
-from tracktube.ui.file_slot import FileSlot
+from tracktube.ui.export_worker import ExportWorker
+from tracktube.ui.image_slot import ImageSlot
 from tracktube.ui.log_panel import LogPanel
 from tracktube.ui.preview_widget import PreviewWidget, pil_to_pixmap
 from tracktube.ui.theme import DEFAULT_THEME, THEMES, apply_theme
@@ -72,13 +74,17 @@ class MainWindow(QMainWindow):
         self._background_path = None
         self._background_image = None
         self._progress_state = "idle"
+        self._metadata_cover = None  # imagen incrustada en los tags del audio cargado
+        self._temp_dir = None        # carpeta temporal donde se guarda esa imagen
 
-        self.slot_image = FileSlot("slot.image", IMAGE_EXTENSIONS, self._load_image)
+        self.slot_image = ImageSlot("slot.image", IMAGE_EXTENSIONS, self._load_image)
         self.slot_audio = AudioSlot("slot.audio", AUDIO_EXTENSIONS, self._load_audio)
         self.slot_image.changed.connect(self._on_image_changed)
+        self.slot_image.metadata_cover_requested.connect(self._use_metadata_cover)
         self.slot_audio.changed.connect(self._on_audio_changed)
 
         self.preview = PreviewWidget()
+        self.preview.export_requested.connect(self._export_preview_image)
 
         self.label_short_warning = QLabel()
         self.label_short_warning.setWordWrap(True)
@@ -399,9 +405,33 @@ class MainWindow(QMainWindow):
     def _on_audio_changed(self):
         if self.slot_audio.path is None:
             self._duration = 0
+            self._metadata_cover = None
             logger.info("Audio track removed")
+        else:
+            self._metadata_cover = media_info.get_embedded_cover(self.slot_audio.path)
+            if self._metadata_cover is None:
+                logger.debug("No embedded image found in the audio tags")
+            else:
+                logger.info("Embedded image found in the audio tags (%s, %d KB)",
+                            self._metadata_cover.mime, len(self._metadata_cover.data) // 1024)
+        self.slot_image.set_metadata_cover_available(self._metadata_cover is not None)
         self._update_short_warning()
         self._update_export_enabled()
+
+    def _use_metadata_cover(self):
+        """Usa la imagen incrustada en los tags del audio como Album art."""
+        if self._metadata_cover is None:
+            return
+        if self._temp_dir is None:
+            self._temp_dir = tempfile.TemporaryDirectory(prefix="tracktube-")
+        try:
+            path = media_info.save_embedded_cover(self._metadata_cover, self._temp_dir.name)
+        except ValueError as e:
+            logger.error("Could not use the embedded image: %s", e)
+            QMessageBox.warning(self, tr("slot.image"), str(e))
+            return
+        logger.info("Using the embedded image as album art: %s", path)
+        self.slot_image.set_file(str(path))
 
     # --- ajustes ---------------------------------------------------------------
 
@@ -461,6 +491,37 @@ class MainWindow(QMainWindow):
         self.preview.set_options(
             fit_mode, background, self.check_shadow.isChecked(),
             self.spin_margin.value(), self._background_image)
+
+    def _export_preview_image(self):
+        """Guarda la vista previa como JPG (por defecto) o PNG con la resolución del video."""
+        if self._image is None:
+            return
+        width, height = presets.get_dimensions(
+            self._current_ratio(), self.combo_resolution.currentData())
+        start_dir = export_path.build_path(self.input_folder.text(), "x.mp4").parent
+        if not start_dir.is_dir():
+            start_dir = Path.home()
+        name = Path(self.slot_audio.path).stem if self.slot_audio.path else "preview"
+        path, selected_filter = QFileDialog.getSaveFileName(
+            self, tr("preview.export_dialog"), str(start_dir / f"{name}.jpg"), IMAGE_FILTERS)
+        if not path:
+            return
+
+        target = resolve_image_path(path, selected_filter)
+        QApplication.setOverrideCursor(Qt.WaitCursor)  # a 4K el render tarda un momento
+        try:
+            image = render_preview(
+                self._image, self.combo_fit.currentData(), width, height,
+                self.combo_background.currentData(), self.check_shadow.isChecked(),
+                self.spin_margin.value(), self._background_image)
+            save_image(image, target)
+        except OSError as e:
+            logger.error("Could not save the preview image: %s", e)
+            QMessageBox.warning(self, APP_NAME, tr("msg.image_save_failed", error=e))
+            return
+        finally:
+            QApplication.restoreOverrideCursor()
+        logger.info("Preview exported as image: %s (%d x %d)", target, width, height)
 
     def _choose_background(self):
         patterns = " ".join(f"*{ext}" for ext in IMAGE_EXTENSIONS)
@@ -691,6 +752,9 @@ class MainWindow(QMainWindow):
             self._worker.cancel()
             self._worker.wait()
         self._save_settings()
+        if self._temp_dir is not None:  # imagen de metadatos guardada temporalmente
+            self._temp_dir.cleanup()
+            self._temp_dir = None
         logger.info("Tracktube closed")
         self.log_panel.detach()
         super().closeEvent(event)

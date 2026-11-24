@@ -3,8 +3,11 @@ import wave
 import pytest
 from PIL import Image
 
+from audio_helpers import embed_cover, image_bytes, make_audio
 from tracktube.core import media_info
-from tracktube.core.media_info import get_audio_info, has_transparency
+from tracktube.core.media_info import (
+    EmbeddedCover, get_audio_info, get_embedded_cover, has_transparency, save_embedded_cover,
+)
 
 
 def test_detecta_canal_alfa():
@@ -91,6 +94,61 @@ def test_duracion_con_la_funcion_anterior(tmp_path):
     path = tmp_path / "a.wav"
     make_wav(path, 16)
     assert media_info.get_audio_duration(path) == pytest.approx(2, abs=0.05)
+
+
+# --- Imagen incrustada en los tags ---------------------------------------------
+
+
+@pytest.mark.parametrize("extension", ["mp3", "flac", "ogg", "wav"])
+def test_encuentra_la_imagen_incrustada(tmp_path, extension):
+    path = make_audio(tmp_path, extension)
+    data = image_bytes("PNG")
+    embed_cover(path, extension, data, "image/png")
+    cover = get_embedded_cover(path)
+    assert cover is not None
+    assert cover.data == data
+    assert cover.mime == "image/png"
+
+
+@pytest.mark.parametrize("extension", ["mp3", "flac", "ogg", "wav"])
+def test_sin_imagen_en_los_tags_devuelve_none(tmp_path, extension):
+    assert get_embedded_cover(make_audio(tmp_path, extension)) is None
+
+
+def test_prefiere_la_portada_si_hay_varias_imagenes(tmp_path):
+    path = make_audio(tmp_path, "flac")
+    embed_cover(path, "flac", image_bytes("PNG", color=(0, 0, 255)), picture_type=0)  # otra
+    embed_cover(path, "flac", image_bytes("JPEG", color=(255, 0, 0)), "image/jpeg", picture_type=3)
+    cover = get_embedded_cover(path)
+    assert cover.mime == "image/jpeg"
+
+
+def test_archivo_que_no_es_audio_no_tiene_imagen(tmp_path):
+    path = tmp_path / "no-es-audio.mp3"
+    path.write_bytes(b"esto no es un audio")
+    assert get_embedded_cover(path) is None
+    assert get_embedded_cover(tmp_path / "no-existe.mp3") is None
+
+
+@pytest.mark.parametrize("format, extension", [("JPEG", ".jpg"), ("PNG", ".png"), ("BMP", ".bmp")])
+def test_guarda_la_imagen_incrustada_tal_cual(tmp_path, format, extension):
+    data = image_bytes(format)
+    path = save_embedded_cover(EmbeddedCover(data, "image/x"), tmp_path)
+    assert path == tmp_path / f"metadata-cover{extension}"
+    assert path.read_bytes() == data
+
+
+def test_convierte_a_png_los_formatos_no_admitidos(tmp_path):
+    data = image_bytes("GIF")
+    path = save_embedded_cover(EmbeddedCover(data, "image/gif"), tmp_path)
+    assert path.suffix == ".png"
+    with Image.open(path) as image:
+        assert image.format == "PNG" and image.size == (120, 80)
+
+
+def test_una_imagen_incrustada_corrupta_lanza_value_error(tmp_path):
+    with pytest.raises(ValueError):
+        save_embedded_cover(EmbeddedCover(b"no es una imagen", "image/png"), tmp_path)
 
 
 def test_archivo_que_no_es_audio(tmp_path):

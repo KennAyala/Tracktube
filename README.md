@@ -15,7 +15,9 @@ Reference: [Recommended upload encoding settings](https://support.google.com/you
 - Two simple inputs: **Album art** (jpg, jpeg, png, bmp) and **Audio track** (wav, flac, mp3, ogg), with buttons to add, replace and delete, plus drag and drop.
 - **Audio information:** the Audio track section shows the duration, format, bitrate and bit depth of the file (bit depth only applies to lossless formats such as WAV and FLAC; it shows `—` for MP3 and OGG).
 - **Audio preview:** a Play / Stop button to listen to the audio before exporting.
+- **Image from the audio metadata:** when you load an audio file, Tracktube looks for an image in its tags (cover art in MP3 and WAV via ID3, FLAC pictures, and OGG Vorbis / Opus). If there is one, a **Use metadata image** button appears in the Album art section; clicking it uses that image as the album art. It never replaces your image on its own.
 - Live **preview** of the frame that will fill the whole video.
+- **Export preview as image:** a button under the preview saves the frame as a **JPG** (default) or **PNG**. It is rendered at the video's resolution and aspect ratio, with the current fit, background, shadow and margin.
 - **PNG transparency is preserved:** transparent areas show the selected background (black when there is none), because MP4 has no alpha channel. The shadow follows the album art silhouette.
 - **Aspect ratios:** 1:1, 4:3, 5:4 and 16:9, with **horizontal** (default) and **vertical** orientation buttons (3:4, 4:5 and 9:16).
 - **Resolutions:** 480p, 720p, 1080p, 1440p and 2160p (4K). Resolution is taken from the short side.
@@ -62,10 +64,10 @@ If you prefer, you can skip the virtual environment and install the dependencies
 
 Basic flow:
 
-1. Add an image in **Album art** and an audio file in **Audio track**.
+1. Add an image in **Album art** and an audio file in **Audio track**. If the audio has an image in its tags, you can click **Use metadata image** instead of adding one.
 2. Check the audio information and, if you want, listen to it with **Play**.
 3. Choose aspect ratio, orientation, resolution, FPS and image fit.
-4. Check the **Preview**.
+4. Check the **Preview** (you can save it as an image with **Export preview as image**).
 5. Confirm the export folder and file name and click **Export**.
 
 ## Exported video specifications
@@ -119,11 +121,13 @@ tracktube/
 │  │  ├─ ffmpeg_cmd.py      # builds the FFmpeg command
 │  │  ├─ exporter.py        # runs FFmpeg, progress and cancellation
 │  │  ├─ export_path.py     # default file name and folder + name join
-│  │  └─ media_info.py      # audio info (duration, format, bitrate, bit depth) and image validation
+│  │  ├─ image_export.py    # save the preview as JPG / PNG
+│  │  └─ media_info.py      # audio info, image found in the audio tags and image validation
 │  └─ ui/
 │     ├─ main_window.py
 │     ├─ file_slot.py       # file input (add, replace, delete)
 │     ├─ audio_slot.py      # audio input with the Play / Stop preview
+│     ├─ image_slot.py      # album art input with the "Use metadata image" button
 │     ├─ theme.py           # system / light / dark theme
 │     ├─ preview_widget.py
 │     ├─ export_worker.py   # export thread
@@ -148,7 +152,9 @@ What they cover:
 | `test_exporter.py` | Real exports: checks H.264 High, `yuv420p`, BT.709, size, fps, AAC 48 kHz stereo, progress, cancellation and logging |
 | `test_export_path.py` | Default file name, relative path resolution, `.mp4` extension and folder + name join |
 | `test_main_window.py` | UI (headless): folder and file name fields, UUID renewal on start and after exporting, refresh button, overwrite confirmation, audio info, Play / Stop preview, theme selector, progress status |
-| `test_media_info.py` | Audio info for WAV, FLAC, MP3 and OGG (duration, format, bitrate, bit depth) and transparency detection for PNG images |
+| `test_media_info.py` | Audio info for WAV, FLAC, MP3 and OGG (duration, format, bitrate, bit depth), the image embedded in the tags of real MP3, WAV, FLAC and OGG files, and transparency detection for PNG images |
+| `test_image_export.py` | Choosing JPG or PNG from the extension or the dialog filter, and saving both formats |
+| `test_cover_and_preview_export.py` | UI (headless): the "Use metadata image" button and the export of the preview as an image (format, size, current settings, cancel and errors) |
 | `test_settings.py` | Settings saved in `user/conf.ini`, folder creation and `user/` in `.gitignore` |
 | `test_theme.py` | Which color scheme each theme requests |
 | `test_i18n.py` | Same keys in English and Spanish, default language |
@@ -157,6 +163,8 @@ What they cover:
 ### Manual checklist
 
 - [ ] Add, replace and delete the image and the audio (with the buttons and by dragging).
+- [ ] Loading an audio file with an image in its tags shows **Use metadata image**; one without it does not. Clicking it loads that image as the album art.
+- [ ] **Export preview as image** is disabled without an image, opens a save dialog with JPG first (default) and PNG, and the saved file has the video's resolution.
 - [ ] The preview updates when changing ratio, orientation, fit, background, shadow and margin.
 - [ ] A PNG with transparency shows the background through its transparent areas (no white box) in the thumbnail, the preview and the exported video.
 - [ ] Switching to vertical renames the ratio selector entries to 3:4, 4:5 and 9:16.
@@ -181,6 +189,7 @@ What they cover:
 - Bitrate values are taken from YouTube's recommendations and should be checked against the official documentation from time to time.
 - The Light and Dark themes use Qt's color scheme support, so they need PySide6 6.8 or newer; the System theme follows the Windows setting.
 - The audio preview uses the system audio output, so it needs a working audio device.
+- Images embedded in audio tags are detected in MP3, WAV, FLAC and OGG files. The image is saved to a temporary folder that is deleted when you close the app.
 - With 60 fps and high resolutions (for example 4K), encoding long audio files takes noticeably longer.
 - There is no `.exe` packaging yet.
 
