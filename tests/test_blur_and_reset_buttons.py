@@ -286,6 +286,17 @@ def test_al_aparecer_las_x_el_resto_de_los_campos_no_se_mueve(qapp, make_window)
     assert [w.geometry() for w in widgets] == before
 
 
+def test_la_sombra_va_debajo_del_margen(qapp, make_window):
+    window = make_window()
+    window.show()
+    qapp.processEvents()
+    order = [window.spin_blur, window.spin_darkness, window.spin_margin, window.check_shadow]
+    tops = [w.geometry().top() for w in order]
+    assert tops == sorted(tops) and len(set(tops)) == 4  # blur, oscuridad, margen y sombra
+    assert window.check_shadow.geometry().top() > window.spin_margin.geometry().bottom()
+    assert window.check_shadow.geometry().bottom() < window.label_fps.geometry().top()
+
+
 def test_la_x_sigue_el_estado_de_su_campo(qapp, make_window):
     window = make_window()
     window.show()
