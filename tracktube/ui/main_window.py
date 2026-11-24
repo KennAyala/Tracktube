@@ -1,4 +1,3 @@
-import os
 import re
 import uuid
 from pathlib import Path
@@ -548,14 +547,6 @@ class MainWindow(QMainWindow):
 
     def _on_export_succeeded(self):
         self._set_progress_state("done", 100)
-        box = QMessageBox(self)
-        box.setWindowTitle(APP_NAME)
-        box.setText(tr("msg.exported", path=self._output))
-        open_button = box.addButton(tr("msg.open_folder"), QMessageBox.ActionRole)
-        box.addButton(QMessageBox.Ok)
-        box.exec()
-        if box.clickedButton() is open_button:
-            os.startfile(self._output.parent)
         self._renew_uuid()
 
     def _on_export_failed(self, message):

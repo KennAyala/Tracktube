@@ -18,7 +18,7 @@ Reference: [Recommended upload encoding settings](https://support.google.com/you
 - With *Fit*: **background** (none, blurred album art or a custom image), album art **shadow** and a **margin** that moves the album art away from the edge.
 - Editable **export path** (default `exports/{uuid}.mp4`), a button to change the folder and a refresh button that generates a new UUID. The UUID changes every time the app opens and after each export; a file name you typed yourself is kept.
 - Warns you before exporting if a video already exists at the chosen path and will be replaced.
-- Progress bar, cancel button and a completion message with a shortcut to the folder.
+- Progress bar with its status (Ready, Exporting, Done) and a cancel button.
 - **YouTube Short warning** when the video lasts 3:00 or less and the aspect ratio is not horizontal.
 - Interface in **English** (default) and **Spanish**.
 - Remembers your settings (options and export path) between sessions.
@@ -153,7 +153,7 @@ What they cover:
 
 ## Known limitations
 
-- Only tested on Windows. The "Open folder" button uses `os.startfile`, which does not exist on other systems.
+- Only tested on Windows. The code has no known Windows-only dependencies, but other systems have not been tried.
 - Bitrate values are taken from YouTube's recommendations and should be checked against the official documentation from time to time.
 - With 60 fps and high resolutions (for example 4K), encoding long audio files takes noticeably longer.
 - There is no `.exe` packaging yet.

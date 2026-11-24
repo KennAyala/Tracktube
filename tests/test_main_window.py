@@ -78,6 +78,18 @@ def test_el_uuid_cambia_al_terminar_la_exportacion(make_window, tmp_path):
     assert UUID_PATTERN.match(stem(window))
 
 
+def test_no_muestra_aviso_al_terminar_la_exportacion(make_window, tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+
+    window = make_window()
+    monkeypatch.setattr(QMessageBox, "exec",
+                        lambda self: pytest.fail("no debía mostrar ningún aviso"))
+    window._output = tmp_path / "x.mp4"
+    window._on_export_succeeded()
+    assert window.progress.value() == 100
+    assert window.progress.format() == "Done"
+
+
 def test_nombre_propio_se_respeta_al_terminar(make_window, tmp_path):
     window = make_window()
     window.input_path.setText("D:/musica/mi-video.mp4")
