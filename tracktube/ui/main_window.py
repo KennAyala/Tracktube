@@ -85,8 +85,6 @@ class MainWindow(QMainWindow):
 
         self.btn_log = QPushButton()
         self.btn_log.setCheckable(True)
-        self.btn_log.setFlat(True)
-        self.btn_log.setFixedHeight(20)
         self.btn_log.toggled.connect(self._toggle_log)
 
         central = QWidget()
@@ -104,9 +102,8 @@ class MainWindow(QMainWindow):
         left.addStretch(1)
         content.addLayout(left, 1)
         content.addWidget(self.preview)
+        content.addWidget(self.log_panel)
         root.addLayout(content)
-        root.addWidget(self.log_panel)
-        root.addWidget(self.btn_log)
 
         self._load_settings()
         self._connect_persistence()
@@ -128,6 +125,7 @@ class MainWindow(QMainWindow):
         self.combo_language.currentIndexChanged.connect(self._on_language_changed)
 
         header = QHBoxLayout()
+        header.addWidget(self.btn_log)
         header.addStretch(1)
         header.addWidget(self.label_language)
         header.addWidget(self.combo_language)
@@ -388,6 +386,8 @@ class MainWindow(QMainWindow):
 
     def _toggle_log(self, visible):
         self.log_panel.setVisible(visible)
+        # Actualiza el layout antes de ajustar para que la ventana crezca o se encoja
+        self.centralWidget().layout().activate()
         self.adjustSize()
 
     def _on_options_changed(self, *_):

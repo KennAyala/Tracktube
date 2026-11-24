@@ -33,9 +33,8 @@ class LogPanel(QPlainTextEdit):
         super().__init__(parent)
         self.setReadOnly(True)
         self.setMaximumBlockCount(MAX_LINES)
-        self.setLineWrapMode(QPlainTextEdit.NoWrap)
         self.setFont(QFontDatabase.systemFont(QFontDatabase.FixedFont))
-        self.setFixedHeight(160)
+        self.setMinimumWidth(420)
 
         self._handler = QtLogHandler()
         self._handler.emitter.message.connect(self.appendPlainText)
