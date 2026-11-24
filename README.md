@@ -21,7 +21,7 @@ Reference: [Recommended upload encoding settings](https://support.google.com/you
 - **PNG transparency is preserved:** transparent areas show the selected background (black when there is none), because MP4 has no alpha channel. The shadow follows the album art silhouette.
 - **Aspect ratios:** 1:1, 4:3, 5:4 and 16:9, with **horizontal** (default) and **vertical** orientation buttons (3:4, 4:5 and 9:16).
 - **Resolutions:** 480p, 720p, 1080p, 1440p and 2160p (4K). Resolution is taken from the short side.
-- **FPS:** Minimum (1), 15, 24, 30 and 60 (default).
+- **FPS:** 1 (default), 15, 24, 30 and 60. One frame per second is enough for a still image and makes the export much faster.
 - **Image fit:** Fit, Crop or Stretch.
 - With *Fit*: **background** (none, blurred album art or a custom image), album art **shadow** and a **margin** that moves the album art away from the edge. A **negative margin** (down to -50 %) does the opposite: it enlarges the album art past the edges so it looks closer.
 - **Background blur:** a percentage for how strong the blurred background is (50 % by default, 0 % means no blur). It is always visible and is enabled only with the *Blurred album art* background.
@@ -154,6 +154,7 @@ What they cover:
 | `test_fit_modes.py` | FFmpeg filters and Pillow preview for each fit, background, shadow and margin |
 | `test_exporter.py` | Real exports: checks H.264 High, `yuv420p`, BT.709, size, fps, AAC 48 kHz stereo, progress, cancellation and logging |
 | `test_export_path.py` | Default file name, relative path resolution, `.mp4` extension and folder + name join |
+| `test_fps_default.py` | The FPS options and their default (1), the plain number labels in both languages, restoring a saved value, and the value sent to the exporter |
 | `test_main_window.py` | UI (headless): folder and file name fields, UUID renewal on start and after exporting, refresh button, overwrite confirmation, audio info, Play / Stop preview, theme selector, progress status |
 | `test_m4a_and_aac.py` | `.m4a` (AAC and ALAC) and `.aac` support: accepted extensions, drag and drop, info (format, bitrate, bit depth), the cover of M4A files, the UI, and real exports from each format |
 | `test_media_info.py` | Audio info for WAV, FLAC, MP3 and OGG (duration, format, bitrate, bit depth), the image embedded in the tags of real MP3, WAV, FLAC and OGG files, and transparency detection for PNG images |
@@ -183,6 +184,7 @@ What they cover:
 - [ ] Switching to vertical renames the ratio selector entries to 3:4, 4:5 and 9:16.
 - [ ] The ✕ button next to the margin resets it to 0.
 - [ ] The Short warning shows for audio of 3:00 or less in 1:1 or vertical, and hides in horizontal or above 3:00.
+- [ ] The FPS options are 1, 15, 24, 30 and 60 (plain numbers), and 1 is selected the first time you open the app.
 - [ ] Switching between English and Spanish translates the whole interface.
 - [ ] The Audio track section shows duration, format, bitrate and bit depth (`—` for the bit depth of MP3, OGG, M4A with AAC and raw AAC).
 - [ ] `.m4a` (AAC and ALAC) and `.aac` files can be added with the button and by dragging, they play with **Play**, and they export to a video.

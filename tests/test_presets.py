@@ -58,5 +58,6 @@ def test_gop():
     assert [presets.get_gop(f) for f in presets.FPS_OPTIONS] == [1, 7, 12, 15, 30]
 
 
-def test_default_fps_es_60():
-    assert presets.DEFAULT_FPS == 60
+def test_default_fps_es_1():
+    assert presets.DEFAULT_FPS == 1
+    assert presets.DEFAULT_FPS in presets.FPS_OPTIONS

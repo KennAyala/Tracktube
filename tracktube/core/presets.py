@@ -22,10 +22,10 @@ BASE_ASPECT_RATIOS = ("1:1", "4:3", "5:4", "16:9")
 RESOLUTIONS = (480, 720, 1080, 1440, 2160)
 DEFAULT_RESOLUTION = 1080
 
-# Mínimo práctico para una imagen fija: 1 fps
+# Mínimo práctico para una imagen fija: 1 fps (también es el valor por defecto)
 MIN_FPS = 1
 FPS_OPTIONS = (MIN_FPS, 15, 24, 30, 60)
-DEFAULT_FPS = 60
+DEFAULT_FPS = MIN_FPS
 
 # Bitrate de video SDR en kbps, por lado corto.
 # (hasta 30 fps, de 48 a 60 fps)

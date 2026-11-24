@@ -400,10 +400,6 @@ class MainWindow(QMainWindow):
         self.label_margin.setToolTip(tr("settings.margin_tip"))
         self.btn_margin_reset.setToolTip(tr("settings.margin_reset"))
         self.label_fps.setText(tr("settings.fps"))
-        for button in self.fps_group.buttons():
-            fps = self.fps_group.id(button)
-            if fps == presets.MIN_FPS:
-                button.setText(tr("settings.fps_min", fps=fps))
 
         self.group_export.setTitle(tr("export.title"))
         self.label_folder.setText(tr("export.folder"))
