@@ -1,36 +1,36 @@
-> **Nota:** este proyecto fue creado con asistencia de inteligencia artificial (Claude, de Anthropic). El código y la documentación fueron generados y revisados en conjunto con una persona.
+> **Note:** this project was created with the assistance of artificial intelligence (Claude, by Anthropic). The code and documentation were generated and reviewed together with a person.
 
 # Tracktube
 
-Aplicación de escritorio en Python para convertir **una imagen + un audio en un video MP4**, listo para subir a YouTube. Está pensada para exportar rápido, con las características de codificación que recomienda YouTube.
+A Python desktop app that turns **an image + an audio file into an MP4 video**, ready to upload to YouTube. It is built to export quickly, using the encoding settings recommended by YouTube.
 
-Referencia usada: [Configuración de codificación recomendada para subir videos](https://support.google.com/youtube/answer/1722171).
+Reference: [Recommended upload encoding settings](https://support.google.com/youtube/answer/1722171).
 
-## Características
+## Features
 
-- Dos entradas simples: **Album art** (jpg, jpeg, png, bmp) y **Audio track** (wav, flac, mp3, ogg), con botones para agregar, reemplazar y eliminar, y soporte de arrastrar y soltar.
-- **Preview** en vivo de cómo se verá el frame que ocupará todo el video.
-- **Aspect ratios:** 1:1, 4:3, 5:4 y 16:9, con botones de orientación **horizontal** (por defecto) y **vertical** (3:4, 4:5 y 9:16).
-- **Resoluciones:** 480p, 720p, 1080p, 1440p y 2160p (4K). La resolución se toma por el lado corto.
-- **FPS:** Mínimo (1), 15, 24, 30 y 60 (por defecto).
-- **Ajuste de imagen:** Ajustar, Cortar o Estirar.
-- Con el ajuste *Ajustar*: **fondo** (ninguno, carátula desenfocada o imagen personalizada), **sombra** para la carátula y **margen** que aleja la carátula del borde.
-- **Ruta de exportación** editable (por defecto `exports/{uuid}.mp4`) y botón para cambiar la carpeta.
-- Barra de progreso, botón de cancelar y aviso al terminar con acceso a la carpeta.
-- **Aviso de YouTube Short** cuando el video dura 3:00 o menos y el aspect ratio no es horizontal.
-- Interfaz en **inglés** (por defecto) y **español**.
-- Guarda tu configuración (ajustes y ruta de exportación) entre sesiones.
-- Panel **Log** de depuración al fondo de la ventana.
+- Two simple inputs: **Album art** (jpg, jpeg, png, bmp) and **Audio track** (wav, flac, mp3, ogg), with buttons to add, replace and delete, plus drag and drop.
+- Live **preview** of the frame that will fill the whole video.
+- **Aspect ratios:** 1:1, 4:3, 5:4 and 16:9, with **horizontal** (default) and **vertical** orientation buttons (3:4, 4:5 and 9:16).
+- **Resolutions:** 480p, 720p, 1080p, 1440p and 2160p (4K). Resolution is taken from the short side.
+- **FPS:** Minimum (1), 15, 24, 30 and 60 (default).
+- **Image fit:** Fit, Crop or Stretch.
+- With *Fit*: **background** (none, blurred album art or a custom image), album art **shadow** and a **margin** that moves the album art away from the edge.
+- Editable **export path** (default `exports/{uuid}.mp4`) and a button to change the folder.
+- Progress bar, cancel button and a completion message with a shortcut to the folder.
+- **YouTube Short warning** when the video lasts 3:00 or less and the aspect ratio is not horizontal.
+- Interface in **English** (default) and **Spanish**.
+- Remembers your settings (options and export path) between sessions.
+- **Log** panel for debugging, opened from the button at the top of the window and shown on the side.
 
-## Requisitos
+## Requirements
 
-- Python 3.11 o superior (desarrollado y probado con 3.11).
-- Windows (ver [Limitaciones conocidas](#limitaciones-conocidas)).
-- No hace falta instalar FFmpeg: el binario viene incluido con el paquete `imageio-ffmpeg`.
+- Python 3.11 or newer (developed and tested with 3.11).
+- Windows (see [Known limitations](#known-limitations)).
+- FFmpeg does not need to be installed: the binary ships with the `imageio-ffmpeg` package.
 
-Dependencias (ver [requirements.txt](requirements.txt)): PySide6, imageio-ffmpeg, mutagen, Pillow y pytest.
+Dependencies (see [requirements.txt](requirements.txt)): PySide6, imageio-ffmpeg, mutagen, Pillow and pytest.
 
-## Instalación
+## Installation
 
 ```powershell
 git clone https://github.com/KennAyala/tracktube.git
@@ -39,32 +39,32 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-## Ejecución
+## Usage
 
 ```powershell
 .\.venv\Scripts\python.exe main.py
 ```
 
-Uso básico:
+Basic flow:
 
-1. Agrega una imagen en **Album art** y un audio en **Audio track**.
-2. Elige aspect ratio, orientación, resolución, FPS y el ajuste de imagen.
-3. Revisa el **Preview**.
-4. Confirma la ruta de exportación y pulsa **Exportar**.
+1. Add an image in **Album art** and an audio file in **Audio track**.
+2. Choose aspect ratio, orientation, resolution, FPS and image fit.
+3. Check the **Preview**.
+4. Confirm the export path and click **Export**.
 
-## Especificaciones del video exportado
+## Exported video specifications
 
-| Elemento | Valor |
+| Item | Value |
 |---|---|
-| Contenedor | MP4 con `faststart` |
-| Video | H.264 (`libx264`), perfil High, progresivo, 2 B-frames, GOP cerrado, CABAC |
-| GOP | La mitad del frame rate (mínimo 1) |
+| Container | MP4 with `faststart` |
+| Video | H.264 (`libx264`), High profile, progressive, 2 B-frames, closed GOP, CABAC |
+| GOP | Half the frame rate (minimum 1) |
 | Color | `yuv420p`, BT.709 |
-| Audio | AAC-LC estéreo, 48 kHz, 384 kbps |
+| Audio | AAC-LC stereo, 48 kHz, 384 kbps |
 
-Bitrate de video (SDR) según resolución y frame rate:
+Video bitrate (SDR) by resolution and frame rate:
 
-| Resolución | Hasta 30 fps | 48–60 fps |
+| Resolution | Up to 30 fps | 48–60 fps |
 |---|---|---|
 | 480p | 2.5 Mbps | 4 Mbps |
 | 720p | 5 Mbps | 7.5 Mbps |
@@ -72,79 +72,79 @@ Bitrate de video (SDR) según resolución y frame rate:
 | 1440p | 16 Mbps | 24 Mbps |
 | 2160p | 40 Mbps | 60 Mbps |
 
-Las dimensiones se calculan a partir del lado corto y se redondean a números pares (requisito de `yuv420p`). Ejemplos a 1080p: 16:9 → 1920×1080, 4:3 → 1440×1080, 5:4 → 1350×1080, 1:1 → 1080×1080, 9:16 → 1080×1920.
+Dimensions are computed from the short side and rounded to even numbers (a `yuv420p` requirement). Examples at 1080p: 16:9 → 1920×1080, 4:3 → 1440×1080, 5:4 → 1350×1080, 1:1 → 1080×1080, 9:16 → 1080×1920.
 
-## Configuración guardada
+## Saved settings
 
-Los ajustes y la ruta de exportación se guardan con `QSettings` (en Windows, en el registro bajo `HKEY_CURRENT_USER\Software\Tracktube`). Si la ruta guardada tenía un nombre generado (uuid), al abrir la app se asigna uno nuevo para no sobrescribir la exportación anterior; un nombre escrito a mano se respeta.
+Options and the export path are stored with `QSettings` (on Windows, in the registry under `HKEY_CURRENT_USER\Software\Tracktube`). If the saved path used a generated name (uuid), a new one is assigned when the app starts so the previous export is not overwritten; a name typed by hand is kept.
 
-## Estructura del proyecto
+## Project structure
 
 ```
 tracktube/
-├─ main.py                  # punto de entrada
+├─ main.py                  # entry point
 ├─ requirements.txt
 ├─ pytest.ini
-├─ exports/                 # carpeta de exportación por defecto
+├─ exports/                 # default export folder
 ├─ tracktube/
-│  ├─ config.py             # extensiones permitidas y rutas base
-│  ├─ i18n.py               # traducciones (en / es)
-│  ├─ log.py                # logger de depuración
+│  ├─ config.py             # allowed extensions and base paths
+│  ├─ i18n.py               # translations (en / es)
+│  ├─ log.py                # debug logger
 │  ├─ core/
-│  │  ├─ presets.py         # ratios, resoluciones, fps, bitrates
-│  │  ├─ fit_modes.py       # ajuste de imagen: filtro FFmpeg + preview con Pillow
-│  │  ├─ ffmpeg_cmd.py      # arma el comando de FFmpeg
-│  │  ├─ exporter.py        # ejecuta FFmpeg, progreso y cancelación
-│  │  ├─ export_path.py     # ruta de exportación por defecto y cambio de carpeta
-│  │  └─ media_info.py      # duración del audio y validación de imagen
+│  │  ├─ presets.py         # ratios, resolutions, fps, bitrates
+│  │  ├─ fit_modes.py       # image fit: FFmpeg filter + Pillow preview
+│  │  ├─ ffmpeg_cmd.py      # builds the FFmpeg command
+│  │  ├─ exporter.py        # runs FFmpeg, progress and cancellation
+│  │  ├─ export_path.py     # default export path and folder change
+│  │  └─ media_info.py      # audio duration and image validation
 │  └─ ui/
 │     ├─ main_window.py
-│     ├─ file_slot.py       # entrada de archivo (agregar, reemplazar, eliminar)
+│     ├─ file_slot.py       # file input (add, replace, delete)
 │     ├─ preview_widget.py
-│     ├─ export_worker.py   # hilo de exportación
-│     └─ log_panel.py       # panel de log
+│     ├─ export_worker.py   # export thread
+│     └─ log_panel.py       # log panel
 └─ tests/
 ```
 
-## QA y pruebas
+## QA and testing
 
-### Pruebas automáticas
+### Automated tests
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest
 ```
 
-Qué cubren:
+What they cover:
 
-| Archivo | Cubre |
+| File | Covers |
 |---|---|
-| `test_presets.py` | Dimensiones pares y correctas por ratio y resolución, orientación, bitrates, GOP y regla del aviso de Short |
-| `test_fit_modes.py` | Filtros de FFmpeg y preview con Pillow para cada ajuste, fondo, sombra y margen |
-| `test_exporter.py` | Exportaciones reales: verifica H.264 High, `yuv420p`, BT.709, tamaño, fps, AAC 48 kHz estéreo, progreso, cancelación y log |
-| `test_export_path.py` | Ruta por defecto, resolución de rutas relativas, extensión `.mp4` y cambio de carpeta |
-| `test_i18n.py` | Mismas claves en inglés y español, idioma por defecto |
-| `test_log.py` | Reenvío de mensajes al panel de log |
+| `test_presets.py` | Even and correct dimensions per ratio and resolution, orientation, bitrates, GOP and the YouTube Short rule |
+| `test_fit_modes.py` | FFmpeg filters and Pillow preview for each fit, background, shadow and margin |
+| `test_exporter.py` | Real exports: checks H.264 High, `yuv420p`, BT.709, size, fps, AAC 48 kHz stereo, progress, cancellation and logging |
+| `test_export_path.py` | Default path, relative path resolution, `.mp4` extension and folder change |
+| `test_i18n.py` | Same keys in English and Spanish, default language |
+| `test_log.py` | Message forwarding to the log panel |
 
-### Lista de verificación manual
+### Manual checklist
 
-- [ ] Agregar, reemplazar y eliminar imagen y audio (por botón y arrastrando).
-- [ ] El preview cambia al variar ratio, orientación, ajuste, fondo, sombra y margen.
-- [ ] Al cambiar a vertical, los nombres del selector pasan a 3:4, 4:5 y 9:16.
-- [ ] El botón ✕ del margen lo regresa a 0.
-- [ ] El aviso de Short aparece con un audio de 3:00 o menos en 1:1 o vertical, y desaparece en horizontal o con más de 3:00.
-- [ ] Cambiar entre inglés y español traduce toda la interfaz.
-- [ ] Cerrar y abrir la app conserva ajustes y ruta de exportación.
-- [ ] Exportar, cancelar a mitad y volver a exportar.
-- [ ] Abrir el MP4 resultante y confirmar que coincide con el preview.
-- [ ] El panel **Log** muestra el comando de FFmpeg y el progreso.
+- [ ] Add, replace and delete the image and the audio (with the buttons and by dragging).
+- [ ] The preview updates when changing ratio, orientation, fit, background, shadow and margin.
+- [ ] Switching to vertical renames the ratio selector entries to 3:4, 4:5 and 9:16.
+- [ ] The ✕ button next to the margin resets it to 0.
+- [ ] The Short warning shows for audio of 3:00 or less in 1:1 or vertical, and hides in horizontal or above 3:00.
+- [ ] Switching between English and Spanish translates the whole interface.
+- [ ] Closing and reopening the app keeps the settings and export path.
+- [ ] Export, cancel halfway, and export again.
+- [ ] Open the resulting MP4 and confirm it matches the preview.
+- [ ] The **Log** button at the top opens the panel on the right, and it shows the FFmpeg command and progress.
 
-## Limitaciones conocidas
+## Known limitations
 
-- Solo se ha probado en Windows. El botón "Abrir carpeta" usa `os.startfile`, que no existe en otros sistemas.
-- Los valores de bitrate están tomados de las recomendaciones de YouTube y conviene contrastarlos de vez en cuando con la documentación oficial.
-- Con 60 fps y resoluciones altas (por ejemplo 4K) la codificación de audios largos tarda bastante más.
-- Aún no hay empaquetado a `.exe`.
+- Only tested on Windows. The "Open folder" button uses `os.startfile`, which does not exist on other systems.
+- Bitrate values are taken from YouTube's recommendations and should be checked against the official documentation from time to time.
+- With 60 fps and high resolutions (for example 4K), encoding long audio files takes noticeably longer.
+- There is no `.exe` packaging yet.
 
-## Licencia
+## License
 
-Pendiente de definir.
+To be defined.
