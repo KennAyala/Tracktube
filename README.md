@@ -17,7 +17,7 @@ Reference: [Recommended upload encoding settings](https://support.google.com/you
 - **Audio preview:** a Play / Stop button to listen to the audio before exporting.
 - **Image from the audio metadata:** when you load an audio file, Tracktube looks for an image in its tags (cover art in MP3 and WAV via ID3, FLAC pictures, OGG Vorbis / Opus, and the cover of M4A files). If there is one, a **Use metadata image** button appears in the Album art section; clicking it uses that image as the album art. It never replaces your image on its own.
 - Live **preview** of the frame that will fill the whole video. It uses the space available: it grows when you enlarge the window and never asks for more than a small minimum, so the window can be low.
-- **Layout:** audio and album art on the left; **Output settings** on the right with the preview right below; and **Export** across the whole width at the bottom.
+- **Layout:** audio, album art and, right below them, **Output settings** on the left; the preview on the right; and **Export** across the whole width at the bottom. Output settings has two columns to keep the window low: the video format on the left (aspect ratio, resolution, image fit, margin, shadow and, at the end, FPS) and the background on the right (background, blur and darkness).
 - **Export preview as image:** a button under the preview saves the frame as a **JPG** (default) or **PNG**. It is rendered at the video's resolution and aspect ratio, with the current fit, background, darkness, shadow and margin. The suggested file name is the current **File name** (for example `my-video.mp4` suggests `my-video.jpg`).
 - **PNG transparency is preserved:** transparent areas show the selected background (black when there is none), because MP4 has no alpha channel. The shadow follows the album art silhouette.
 - **Aspect ratios:** 1:1, 4:3, 5:4 and 16:9, with **horizontal** (default) and **vertical** orientation buttons (3:4, 4:5 and 9:16).
@@ -70,7 +70,7 @@ Basic flow:
 
 1. Add an audio file in **Audio track**, then an image in **Album art**. If the audio has an image in its tags, you can click **Use metadata image** instead of adding one.
 2. Check the audio information and, if you want, listen to it with **Play**.
-3. In **Output settings** (on the right, right above the preview) choose aspect ratio, orientation, resolution, FPS and image fit.
+3. In **Output settings** (below the two inputs) choose aspect ratio, orientation, resolution, image fit, margin, shadow, FPS and, if you want one, a background.
 4. Check the **Preview** (you can save it as an image with **Export preview as image**).
 5. Confirm the export folder and file name and click **Export**.
 
@@ -156,7 +156,7 @@ What they cover:
 | `test_exporter.py` | Real exports: checks H.264 High, `yuv420p`, BT.709, size, fps, AAC 48 kHz stereo, progress, cancellation and logging |
 | `test_export_path.py` | Default file name, relative path resolution, `.mp4` extension and folder + name join |
 | `test_fps_default.py` | The FPS options and their default (1), the plain number labels in both languages, restoring a saved value, and the value sent to the exporter |
-| `test_layout.py` | Window layout: Output settings right above the preview, audio and album art on the left, Export across the whole width, the Short warning above it, the log panel on the side, and the preview adapting to the available space |
+| `test_layout.py` | Window layout: audio, album art and Output settings stacked on the left, the preview on the right, the two columns inside Output settings and the order of their fields (margin and shadow under the image fit, FPS last), compact rows, Export across the whole width, the Short warning above it, the log panel on the side, and the preview adapting to the available space |
 | `test_main_window.py` | UI (headless): folder and file name fields, UUID renewal on start and after exporting, refresh button, overwrite confirmation, audio info, Play / Stop preview, theme selector, progress status |
 | `test_m4a_and_aac.py` | `.m4a` (AAC and ALAC) and `.aac` support: accepted extensions, drag and drop, info (format, bitrate, bit depth), the cover of M4A files, the UI, and real exports from each format |
 | `test_media_info.py` | Audio info for WAV, FLAC, MP3 and OGG (duration, format, bitrate, bit depth), the image embedded in the tags of real MP3, WAV, FLAC and OGG files, and transparency detection for PNG images |
@@ -188,7 +188,8 @@ What they cover:
 - [ ] The Short warning shows for audio of 3:00 or less in 1:1 or vertical, and hides in horizontal or above 3:00.
 - [ ] The FPS options are 1, 15, 24, 30 and 60 (plain numbers), and 1 is selected the first time you open the app.
 - [ ] Switching between English and Spanish translates the whole interface.
-- [ ] **Output settings** is on the right, right above the **Preview**; **Export** spans the whole width at the bottom; and the preview grows when you enlarge the window.
+- [ ] **Output settings** is on the left, right below the two inputs, with two columns: aspect ratio, resolution, image fit, margin, shadow and FPS (last, flush left) on the left, and background, blur and darkness on the right.
+- [ ] The **Preview** is on the right, **Export** spans the whole width at the bottom, and the preview grows when you enlarge the window.
 - [ ] The Audio track section shows duration, format, bitrate and bit depth (`—` for the bit depth of MP3, OGG, M4A with AAC and raw AAC).
 - [ ] `.m4a` (AAC and ALAC) and `.aac` files can be added with the button and by dragging, they play with **Play**, and they export to a video.
 - [ ] **Play** plays the audio and becomes **Stop**; **Stop**, replacing or deleting the audio stops it.

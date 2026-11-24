@@ -290,11 +290,11 @@ def test_la_sombra_va_debajo_del_margen(qapp, make_window):
     window = make_window()
     window.show()
     qapp.processEvents()
-    order = [window.spin_blur, window.spin_darkness, window.spin_margin, window.check_shadow]
-    tops = [w.geometry().top() for w in order]
-    assert tops == sorted(tops) and len(set(tops)) == 4  # blur, oscuridad, margen y sombra
-    assert window.check_shadow.geometry().top() > window.spin_margin.geometry().bottom()
-    assert window.check_shadow.geometry().bottom() < window.label_fps.geometry().top()
+    margin, shadow = window.spin_margin.geometry(), window.check_shadow.geometry()
+    fps = window.label_fps.geometry()
+    assert shadow.top() > margin.bottom()  # la sombra debajo del margen
+    assert fps.top() > shadow.bottom()  # y los FPS al final, debajo de la sombra
+    assert shadow.left() < window.spin_margin.geometry().right()  # en la misma columna
 
 
 def test_la_x_sigue_el_estado_de_su_campo(qapp, make_window):

@@ -101,15 +101,16 @@ class MainWindow(QMainWindow):
         root = QVBoxLayout(central)
         root.addLayout(self._build_header())
 
-        # Izquierda: audio e imagen. Derecha: ajustes de salida y, justo debajo, la vista
-        # previa. Debajo de las dos columnas, el aviso de Short y Exportar a todo lo ancho.
+        # Izquierda: audio, imagen y, debajo, los ajustes de salida (en dos columnas).
+        # Derecha: la vista previa. Debajo de las dos columnas, el aviso de Short y
+        # Exportar a todo lo ancho.
         left = QVBoxLayout()
         left.addWidget(self.slot_audio)
         left.addWidget(self.slot_image)
+        left.addWidget(self._build_settings())
         left.addStretch(1)
 
         right = QVBoxLayout()
-        right.addWidget(self._build_settings())
         right.addWidget(self.preview, 1)
 
         columns = QHBoxLayout()
@@ -163,7 +164,14 @@ class MainWindow(QMainWindow):
 
     def _build_settings(self):
         self.group_settings = QGroupBox()
-        grid = QGridLayout(self.group_settings)
+        # Dos columnas para que la sección sea baja: a la izquierda el formato del video con
+        # su margen, sombra y FPS, y a la derecha el fondo con su desenfoque y oscuridad
+        format_grid = QGridLayout()
+        look_grid = QGridLayout()
+        columns = QHBoxLayout(self.group_settings)
+        columns.addLayout(format_grid, 1)
+        columns.addSpacing(24)  # separador: setSpacing lo heredarían también las filas
+        columns.addLayout(look_grid, 1)
 
         # Aspect ratio + orientación (horizontal primero, por defecto)
         self.combo_ratio = QComboBox()
@@ -251,28 +259,36 @@ class MainWindow(QMainWindow):
         self.label_margin = QLabel()
         self.label_fps = QLabel()
 
-        grid.addWidget(self.label_ratio, 0, 0)
-        grid.addLayout(ratio_row, 0, 1, 1, 2)
-        grid.addWidget(self.label_resolution, 1, 0)
-        grid.addWidget(self.combo_resolution, 1, 1)
-        grid.addWidget(self.label_dimensions, 1, 2)
-        grid.addWidget(self.label_fit, 2, 0)
-        grid.addWidget(self.combo_fit, 2, 1, 1, 2)
-        grid.addWidget(self.label_background, 3, 0)
-        grid.addWidget(self.combo_background, 3, 1, 1, 2)
-        grid.addWidget(self.background_row, 4, 1, 1, 2)
-        grid.addWidget(self.label_blur, 5, 0)
-        grid.addWidget(self.spin_blur, 5, 1)
-        grid.addWidget(self.btn_blur_reset, 5, 2)
-        grid.addWidget(self.label_darkness, 6, 0)
-        grid.addWidget(self.spin_darkness, 6, 1)
-        grid.addWidget(self.btn_darkness_reset, 6, 2)
-        grid.addWidget(self.label_margin, 7, 0)
-        grid.addWidget(self.spin_margin, 7, 1)
-        grid.addWidget(self.btn_margin_reset, 7, 2)
-        grid.addWidget(self.check_shadow, 8, 0, 1, 3)
-        grid.addWidget(self.label_fps, 9, 0)
-        grid.addLayout(fps_layout, 9, 1, 1, 2)
+        # Columna izquierda: formato del video y, debajo del ajuste de imagen, su margen y
+        # su sombra; los FPS cierran la columna, pegados a la izquierda
+        format_grid.addWidget(self.label_ratio, 0, 0)
+        format_grid.addLayout(ratio_row, 0, 1, 1, 2)
+        format_grid.addWidget(self.label_resolution, 1, 0)
+        format_grid.addWidget(self.combo_resolution, 1, 1)
+        format_grid.addWidget(self.label_dimensions, 1, 2)
+        format_grid.addWidget(self.label_fit, 2, 0)
+        format_grid.addWidget(self.combo_fit, 2, 1, 1, 2)
+        format_grid.addWidget(self.label_margin, 3, 0)
+        format_grid.addWidget(self.spin_margin, 3, 1)
+        format_grid.addWidget(self.btn_margin_reset, 3, 2)
+        format_grid.addWidget(self.check_shadow, 4, 0, 1, 3)
+        format_grid.addWidget(self.label_fps, 5, 0)
+        format_grid.addLayout(fps_layout, 5, 1, 1, 2)
+        format_grid.setColumnStretch(1, 1)
+        format_grid.setRowStretch(6, 1)  # los campos quedan arriba, juntos
+
+        # Columna derecha: fondo (solo aplica con el ajuste «Ajustar»)
+        look_grid.addWidget(self.label_background, 0, 0)
+        look_grid.addWidget(self.combo_background, 0, 1, 1, 2)
+        look_grid.addWidget(self.background_row, 1, 1, 1, 2)
+        look_grid.addWidget(self.label_blur, 2, 0)
+        look_grid.addWidget(self.spin_blur, 2, 1)
+        look_grid.addWidget(self.btn_blur_reset, 2, 2)
+        look_grid.addWidget(self.label_darkness, 3, 0)
+        look_grid.addWidget(self.spin_darkness, 3, 1)
+        look_grid.addWidget(self.btn_darkness_reset, 3, 2)
+        look_grid.setColumnStretch(1, 1)
+        look_grid.setRowStretch(4, 1)
 
         self.combo_ratio.currentIndexChanged.connect(self._on_ratio_changed)
         self.orientation_group.buttonClicked.connect(self._on_ratio_changed)
