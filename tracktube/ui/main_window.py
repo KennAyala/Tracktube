@@ -1,21 +1,27 @@
 import os
+import re
 import uuid
 from pathlib import Path
 
+from PySide6.QtCore import QSettings, QSize, Qt
+from PySide6.QtGui import QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
-    QButtonGroup, QComboBox, QFileDialog, QGridLayout, QGroupBox, QHBoxLayout, QLabel,
-    QLineEdit, QMainWindow, QMessageBox, QProgressBar, QPushButton, QRadioButton,
-    QVBoxLayout, QWidget,
+    QButtonGroup, QCheckBox, QComboBox, QFileDialog, QGridLayout, QGroupBox, QHBoxLayout,
+    QLabel, QLineEdit, QMainWindow, QMessageBox, QProgressBar, QPushButton, QRadioButton,
+    QSpinBox, QToolButton, QVBoxLayout, QWidget,
 )
 
-from tracktube.config import (
-    APP_NAME, AUDIO_EXTENSIONS, IMAGE_EXTENSIONS, LABEL_AUDIO, LABEL_IMAGE,
-)
+from tracktube.config import APP_NAME, AUDIO_EXTENSIONS, IMAGE_EXTENSIONS
 from tracktube.core import export_path, media_info, presets
-from tracktube.core.fit_modes import DEFAULT_FIT_MODE, FIT_MODES
+from tracktube.core.fit_modes import (
+    BACKGROUNDS, DEFAULT_BACKGROUND, DEFAULT_FIT_MODE, FIT_MODES, MAX_MARGIN,
+)
+from tracktube.i18n import DEFAULT_LANGUAGE, LANGUAGES, get_language, set_language, tr
 from tracktube.ui.export_worker import ExportWorker
 from tracktube.ui.file_slot import FileSlot
 from tracktube.ui.preview_widget import PreviewWidget, pil_to_pixmap
+
+UUID_PATTERN = re.compile(r"^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$")
 
 
 def format_duration(seconds):
@@ -24,16 +30,37 @@ def format_duration(seconds):
     return f"{hours}:{minutes:02d}:{secs:02d}" if hours else f"{minutes}:{secs:02d}"
 
 
+def orientation_icon(vertical, color):
+    """Rectángulo horizontal o vertical que indica la orientación."""
+    pixmap = QPixmap(24, 24)
+    pixmap.fill(Qt.transparent)
+    painter = QPainter(pixmap)
+    painter.setPen(QPen(color, 2))
+    if vertical:
+        painter.drawRect(7, 3, 10, 17)
+    else:
+        painter.drawRect(3, 7, 17, 10)
+    painter.end()
+    return QIcon(pixmap)
+
+
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, settings=None):
         super().__init__()
         self.setWindowTitle(APP_NAME)
+        self.settings = settings or QSettings(APP_NAME, APP_NAME)
+        set_language(self.settings.value("language", DEFAULT_LANGUAGE, type=str))
+
+        self._loading = True
         self._image = None
         self._duration = 0
         self._worker = None
+        self._background_path = None
+        self._background_image = None
+        self._progress_state = "idle"
 
-        self.slot_image = FileSlot(LABEL_IMAGE, IMAGE_EXTENSIONS, self._load_image)
-        self.slot_audio = FileSlot(LABEL_AUDIO, AUDIO_EXTENSIONS, self._load_audio)
+        self.slot_image = FileSlot("slot.image", IMAGE_EXTENSIONS, self._load_image)
+        self.slot_audio = FileSlot("slot.audio", AUDIO_EXTENSIONS, self._load_audio)
         self.slot_image.changed.connect(self._on_image_changed)
         self.slot_audio.changed.connect(self._on_audio_changed)
 
@@ -41,109 +68,231 @@ class MainWindow(QMainWindow):
 
         central = QWidget()
         self.setCentralWidget(central)
-        layout = QHBoxLayout(central)
+        root = QVBoxLayout(central)
+        root.addLayout(self._build_header())
 
+        content = QHBoxLayout()
         left = QVBoxLayout()
         left.addWidget(self.slot_image)
         left.addWidget(self.slot_audio)
         left.addWidget(self._build_settings())
         left.addWidget(self._build_export())
         left.addStretch(1)
-        layout.addLayout(left, 1)
-        layout.addWidget(self.preview)
+        content.addLayout(left, 1)
+        content.addWidget(self.preview)
+        root.addLayout(content)
 
-        self._update_dimensions()
+        self._load_settings()
+        self._connect_persistence()
+        self._loading = False
+        self.retranslate_ui()
+        self._on_ratio_changed()
+        self._on_options_changed()
         self._update_export_enabled()
 
     # --- construcción de la UI -------------------------------------------------
 
-    def _build_settings(self):
-        box = QGroupBox("Ajustes")
-        grid = QGridLayout(box)
+    def _build_header(self):
+        self.label_language = QLabel()
+        self.combo_language = QComboBox()
+        for code, name in LANGUAGES.items():
+            self.combo_language.addItem(name, code)
+        self.combo_language.setCurrentIndex(self.combo_language.findData(get_language()))
+        self.combo_language.currentIndexChanged.connect(self._on_language_changed)
 
+        header = QHBoxLayout()
+        header.addStretch(1)
+        header.addWidget(self.label_language)
+        header.addWidget(self.combo_language)
+        return header
+
+    def _build_settings(self):
+        self.group_settings = QGroupBox()
+        grid = QGridLayout(self.group_settings)
+
+        # Aspect ratio + orientación (horizontal primero, por defecto)
         self.combo_ratio = QComboBox()
-        self.combo_ratio.addItems(presets.ASPECT_RATIOS)
+        self.combo_ratio.addItems(presets.BASE_ASPECT_RATIOS)
         self.combo_ratio.setCurrentText(presets.DEFAULT_ASPECT_RATIO)
+        color = self.palette().color(self.foregroundRole())
+        self.btn_horizontal = QToolButton()
+        self.btn_vertical = QToolButton()
+        self.orientation_group = QButtonGroup(self)
+        for button, vertical in ((self.btn_horizontal, False), (self.btn_vertical, True)):
+            button.setIcon(orientation_icon(vertical, color))
+            button.setIconSize(QSize(24, 24))
+            button.setCheckable(True)
+            self.orientation_group.addButton(button)
+        self.btn_horizontal.setChecked(True)
+        ratio_row = QHBoxLayout()
+        ratio_row.addWidget(self.combo_ratio, 1)
+        ratio_row.addWidget(self.btn_horizontal)
+        ratio_row.addWidget(self.btn_vertical)
 
         self.combo_resolution = QComboBox()
         for short_side in presets.RESOLUTIONS:
             self.combo_resolution.addItem(f"{short_side}p", short_side)
         self.combo_resolution.setCurrentIndex(
             self.combo_resolution.findData(presets.DEFAULT_RESOLUTION))
+        self.label_dimensions = QLabel()
 
         self.combo_fit = QComboBox()
-        for key, label in FIT_MODES.items():
-            self.combo_fit.addItem(label, key)
+        for key in FIT_MODES:
+            self.combo_fit.addItem("", key)
         self.combo_fit.setCurrentIndex(self.combo_fit.findData(DEFAULT_FIT_MODE))
 
-        self.label_dimensions = QLabel()
+        # Fondo, sombra y margen (solo aplican al modo "Ajustar")
+        self.combo_background = QComboBox()
+        for key in BACKGROUNDS:
+            self.combo_background.addItem("", key)
+        self.combo_background.setCurrentIndex(
+            self.combo_background.findData(DEFAULT_BACKGROUND))
+        self.btn_background = QPushButton()
+        self.btn_background.clicked.connect(self._choose_background)
+        self.label_background_file = QLabel()
+        self.background_row = QWidget()
+        background_layout = QHBoxLayout(self.background_row)
+        background_layout.setContentsMargins(0, 0, 0, 0)
+        background_layout.addWidget(self.btn_background)
+        background_layout.addWidget(self.label_background_file, 1)
+
+        self.check_shadow = QCheckBox()
+        self.spin_margin = QSpinBox()
+        self.spin_margin.setRange(0, MAX_MARGIN)
+        self.spin_margin.setSuffix(" %")
 
         self.fps_group = QButtonGroup(self)
         fps_layout = QHBoxLayout()
         for fps in presets.FPS_OPTIONS:
-            text = f"Mínimo ({fps} fps)" if fps == presets.MIN_FPS else str(fps)
-            radio = QRadioButton(text)
+            radio = QRadioButton(str(fps))
             radio.setChecked(fps == presets.DEFAULT_FPS)
             self.fps_group.addButton(radio, fps)
             fps_layout.addWidget(radio)
         fps_layout.addStretch(1)
 
-        grid.addWidget(QLabel("Aspect ratio"), 0, 0)
-        grid.addWidget(self.combo_ratio, 0, 1)
-        grid.addWidget(QLabel("Resolución"), 1, 0)
+        self.label_ratio = QLabel()
+        self.label_resolution = QLabel()
+        self.label_fit = QLabel()
+        self.label_background = QLabel()
+        self.label_margin = QLabel()
+        self.label_fps = QLabel()
+
+        grid.addWidget(self.label_ratio, 0, 0)
+        grid.addLayout(ratio_row, 0, 1, 1, 2)
+        grid.addWidget(self.label_resolution, 1, 0)
         grid.addWidget(self.combo_resolution, 1, 1)
         grid.addWidget(self.label_dimensions, 1, 2)
-        grid.addWidget(QLabel("Ajuste de imagen"), 2, 0)
+        grid.addWidget(self.label_fit, 2, 0)
         grid.addWidget(self.combo_fit, 2, 1, 1, 2)
-        grid.addWidget(QLabel("FPS"), 3, 0)
-        grid.addLayout(fps_layout, 3, 1, 1, 2)
+        grid.addWidget(self.label_background, 3, 0)
+        grid.addWidget(self.combo_background, 3, 1, 1, 2)
+        grid.addWidget(self.background_row, 4, 1, 1, 2)
+        grid.addWidget(self.check_shadow, 5, 0, 1, 3)
+        grid.addWidget(self.label_margin, 6, 0)
+        grid.addWidget(self.spin_margin, 6, 1)
+        grid.addWidget(self.label_fps, 7, 0)
+        grid.addLayout(fps_layout, 7, 1, 1, 2)
 
         self.combo_ratio.currentTextChanged.connect(self._on_ratio_changed)
+        self.orientation_group.buttonClicked.connect(self._on_ratio_changed)
         self.combo_resolution.currentIndexChanged.connect(self._update_dimensions)
-        self.combo_fit.currentIndexChanged.connect(
-            lambda: self.preview.set_mode(self.combo_fit.currentData()))
-        return box
+        self.combo_fit.currentIndexChanged.connect(self._on_options_changed)
+        self.combo_background.currentIndexChanged.connect(self._on_options_changed)
+        self.check_shadow.toggled.connect(self._on_options_changed)
+        self.spin_margin.valueChanged.connect(self._on_options_changed)
+        return self.group_settings
 
     def _build_export(self):
-        box = QGroupBox("Exportar")
-        layout = QVBoxLayout(box)
+        self.group_export = QGroupBox()
+        layout = QVBoxLayout(self.group_export)
 
+        self.label_path = QLabel()
         self.input_path = QLineEdit(export_path.new_default_path())
-        self.btn_folder = QPushButton("Cambiar carpeta")
+        self.btn_folder = QPushButton()
         self.btn_folder.clicked.connect(self._change_folder)
         path_row = QHBoxLayout()
         path_row.addWidget(self.input_path, 1)
         path_row.addWidget(self.btn_folder)
         self._generated_name = Path(self.input_path.text()).name
 
-        self.btn_export = QPushButton("Exportar")
+        self.btn_export = QPushButton()
         self.btn_export.clicked.connect(self._start_export)
-        self.btn_cancel = QPushButton("Cancelar")
+        self.btn_cancel = QPushButton()
         self.btn_cancel.clicked.connect(self._cancel_export)
         self.btn_cancel.hide()
-        self.progress = QProgressBar()
-        self.progress.setRange(0, 100)
         action_row = QHBoxLayout()
         action_row.addWidget(self.btn_export)
         action_row.addWidget(self.btn_cancel)
-        action_row.addWidget(self.progress, 1)
+        action_row.addStretch(1)
 
-        layout.addWidget(QLabel("Ruta de exportación"))
+        self.progress = QProgressBar()
+        self.progress.setRange(0, 100)
+        self.progress.setAlignment(Qt.AlignCenter)
+
+        layout.addWidget(self.label_path)
         layout.addLayout(path_row)
         layout.addLayout(action_row)
-        return box
+        layout.addWidget(self.progress)
+        return self.group_export
+
+    # --- idioma ----------------------------------------------------------------
+
+    def _on_language_changed(self):
+        set_language(self.combo_language.currentData())
+        self.retranslate_ui()
+        self._save_settings()
+
+    def retranslate_ui(self):
+        self.label_language.setText(f"{tr('header.language')}:")
+        self.slot_image.retranslate()
+        self.slot_audio.retranslate()
+        self.preview.retranslate()
+
+        self.group_settings.setTitle(tr("settings.title"))
+        self.label_ratio.setText(tr("settings.ratio"))
+        self.btn_horizontal.setToolTip(tr("settings.horizontal"))
+        self.btn_vertical.setToolTip(tr("settings.vertical"))
+        self.label_resolution.setText(tr("settings.resolution"))
+        self.label_fit.setText(tr("settings.fit"))
+        self._retranslate_combo(self.combo_fit, "fit")
+        self.label_background.setText(tr("settings.background"))
+        self._retranslate_combo(self.combo_background, "background")
+        self.btn_background.setText(tr("settings.choose_background"))
+        self._update_background_label()
+        self.check_shadow.setText(tr("settings.shadow"))
+        self.label_margin.setText(tr("settings.margin"))
+        self.spin_margin.setToolTip(tr("settings.margin_tip"))
+        self.label_margin.setToolTip(tr("settings.margin_tip"))
+        self.label_fps.setText(tr("settings.fps"))
+        for button in self.fps_group.buttons():
+            fps = self.fps_group.id(button)
+            if fps == presets.MIN_FPS:
+                button.setText(tr("settings.fps_min", fps=fps))
+
+        self.group_export.setTitle(tr("export.title"))
+        self.label_path.setText(tr("export.path"))
+        self.btn_folder.setText(tr("export.change_folder"))
+        self.btn_export.setText(tr("export.button"))
+        self.btn_cancel.setText(tr("export.cancel"))
+        self._update_progress_format()
+
+    @staticmethod
+    def _retranslate_combo(combo, prefix):
+        for index in range(combo.count()):
+            combo.setItemText(index, tr(f"{prefix}.{combo.itemData(index)}"))
 
     # --- carga de archivos -----------------------------------------------------
 
     def _load_image(self, path):
         image = media_info.load_image(path)
         self._image = image
-        return f"{image.width} × {image.height} px", pil_to_pixmap(image)
+        info = ("slot.image_info", {"width": image.width, "height": image.height})
+        return info, pil_to_pixmap(image)
 
     def _load_audio(self, path):
         duration = media_info.get_audio_duration(path)
         self._duration = duration
-        return f"Duración: {format_duration(duration)}", None
+        return ("slot.audio_info", {"duration": format_duration(duration)}), None
 
     def _on_image_changed(self):
         if self.slot_image.path is None:
@@ -158,14 +307,57 @@ class MainWindow(QMainWindow):
 
     # --- ajustes ---------------------------------------------------------------
 
-    def _on_ratio_changed(self, ratio):
-        self.preview.set_ratio(*presets.ASPECT_RATIOS[ratio])
+    def _current_ratio(self):
+        return presets.get_aspect_ratio(
+            self.combo_ratio.currentText(), self.btn_vertical.isChecked())
+
+    def _on_ratio_changed(self, *_):
+        # 1:1 no tiene orientación
+        self.btn_horizontal.setEnabled(self.combo_ratio.currentText() != "1:1")
+        self.btn_vertical.setEnabled(self.combo_ratio.currentText() != "1:1")
+        self.preview.set_ratio(*presets.ASPECT_RATIOS[self._current_ratio()])
         self._update_dimensions()
 
     def _update_dimensions(self):
         width, height = presets.get_dimensions(
-            self.combo_ratio.currentText(), self.combo_resolution.currentData())
+            self._current_ratio(), self.combo_resolution.currentData())
         self.label_dimensions.setText(f"{width} × {height}")
+
+    def _on_options_changed(self, *_):
+        fit_mode = self.combo_fit.currentData()
+        background = self.combo_background.currentData()
+        framed = fit_mode == "ajustar"
+        for widget in (self.label_background, self.combo_background, self.check_shadow,
+                       self.label_margin, self.spin_margin, self.background_row):
+            widget.setEnabled(framed)
+        self.background_row.setVisible(background == "personalizado")
+        self.preview.set_options(
+            fit_mode, background, self.check_shadow.isChecked(),
+            self.spin_margin.value(), self._background_image)
+
+    def _choose_background(self):
+        patterns = " ".join(f"*{ext}" for ext in IMAGE_EXTENSIONS)
+        title = tr("settings.background_dialog")
+        path, _ = QFileDialog.getOpenFileName(
+            self, title, "", f"{title} ({patterns})")
+        if path:
+            self._set_background_image(path, warn=True)
+            self._on_options_changed()
+            self._save_settings()
+
+    def _set_background_image(self, path, warn=False):
+        try:
+            self._background_image = media_info.load_image(path)
+        except ValueError as e:
+            if warn:
+                QMessageBox.warning(self, APP_NAME, str(e))
+            return
+        self._background_path = path
+        self._update_background_label()
+
+    def _update_background_label(self):
+        self.label_background_file.setText(
+            Path(self._background_path).name if self._background_path else "")
 
     def _update_export_enabled(self):
         ready = self.slot_image.path and self.slot_audio.path and self._worker is None
@@ -176,7 +368,7 @@ class MainWindow(QMainWindow):
     def _change_folder(self):
         current = export_path.resolve_path(self.input_path.text()).parent
         folder = QFileDialog.getExistingDirectory(
-            self, "Carpeta de exportación", str(current))
+            self, tr("export.folder_dialog"), str(current))
         if folder:
             self.input_path.setText(
                 export_path.change_folder(self.input_path.text(), folder))
@@ -190,21 +382,44 @@ class MainWindow(QMainWindow):
 
     # --- exportación -----------------------------------------------------------
 
+    def _update_progress_format(self):
+        if self._progress_state == "running":
+            self.progress.setFormat(f"{tr('export.running')} %p%")
+        elif self._progress_state == "done":
+            self.progress.setFormat(tr("export.done"))
+        else:
+            self.progress.setFormat(tr("export.idle"))
+
+    def _set_progress_state(self, state, value):
+        self._progress_state = state
+        self.progress.setValue(value)
+        self._update_progress_format()
+
     def _start_export(self):
         if not self.input_path.text().strip():
-            QMessageBox.warning(self, APP_NAME, "Indica la ruta de exportación.")
+            QMessageBox.warning(self, APP_NAME, tr("msg.no_path"))
             return
+        background = self.combo_background.currentData()
+        if (self.combo_fit.currentData() == "ajustar" and background == "personalizado"
+                and self._background_path is None):
+            QMessageBox.warning(self, APP_NAME, tr("msg.no_background"))
+            return
+
         output = export_path.resolve_path(self.input_path.text())
         self._output = output
         self._worker = ExportWorker({
             "image": self.slot_image.path,
             "audio": self.slot_audio.path,
             "output": output,
-            "aspect_ratio": self.combo_ratio.currentText(),
+            "aspect_ratio": self._current_ratio(),
             "short_side": self.combo_resolution.currentData(),
             "fps": self.fps_group.checkedId(),
             "fit_mode": self.combo_fit.currentData(),
             "duration": self._duration,
+            "background": background,
+            "background_image": self._background_path,
+            "shadow": self.check_shadow.isChecked(),
+            "margin": self.spin_margin.value(),
         }, self)
         self._worker.progress.connect(self.progress.setValue)
         self._worker.succeeded.connect(self._on_export_succeeded)
@@ -212,7 +427,7 @@ class MainWindow(QMainWindow):
         self._worker.cancelled.connect(self._on_export_cancelled)
         self._worker.finished.connect(self._on_worker_finished)
 
-        self.progress.setValue(0)
+        self._set_progress_state("running", 0)
         self.btn_cancel.show()
         self.btn_cancel.setEnabled(True)
         self._update_export_enabled()
@@ -229,11 +444,11 @@ class MainWindow(QMainWindow):
         self._update_export_enabled()
 
     def _on_export_succeeded(self):
-        self.progress.setValue(100)
+        self._set_progress_state("done", 100)
         box = QMessageBox(self)
         box.setWindowTitle(APP_NAME)
-        box.setText(f"Video exportado:\n{self._output}")
-        open_button = box.addButton("Abrir carpeta", QMessageBox.ActionRole)
+        box.setText(tr("msg.exported", path=self._output))
+        open_button = box.addButton(tr("msg.open_folder"), QMessageBox.ActionRole)
         box.addButton(QMessageBox.Ok)
         box.exec()
         if box.clickedButton() is open_button:
@@ -241,14 +456,82 @@ class MainWindow(QMainWindow):
         self._renew_default_name()
 
     def _on_export_failed(self, message):
-        self.progress.setValue(0)
-        QMessageBox.critical(self, APP_NAME, f"No se pudo exportar el video:\n{message}")
+        self._set_progress_state("idle", 0)
+        QMessageBox.critical(self, APP_NAME, tr("msg.export_failed", error=message))
 
     def _on_export_cancelled(self):
-        self.progress.setValue(0)
+        self._set_progress_state("idle", 0)
+
+    # --- configuración guardada ------------------------------------------------
+
+    def _load_settings(self):
+        """Restaura los ajustes y la ruta de exportación del usuario."""
+        s = self.settings
+        self.combo_ratio.setCurrentText(
+            s.value("ratio", presets.DEFAULT_ASPECT_RATIO, type=str))
+        if s.value("vertical", False, type=bool):
+            self.btn_vertical.setChecked(True)
+        self._set_combo_data(self.combo_resolution,
+                             s.value("resolution", presets.DEFAULT_RESOLUTION, type=int))
+        self._set_combo_data(self.combo_fit, s.value("fit_mode", DEFAULT_FIT_MODE, type=str))
+        self._set_combo_data(self.combo_background,
+                             s.value("background", DEFAULT_BACKGROUND, type=str))
+        self.check_shadow.setChecked(s.value("shadow", False, type=bool))
+        self.spin_margin.setValue(s.value("margin", 0, type=int))
+        button = self.fps_group.button(s.value("fps", presets.DEFAULT_FPS, type=int))
+        if button is not None:
+            button.setChecked(True)
+
+        background_path = s.value("background_image", "", type=str)
+        if background_path and Path(background_path).is_file():
+            self._set_background_image(background_path)
+
+        # Un nombre generado (uuid) no se reutiliza para no sobrescribir
+        # la exportación anterior; un nombre escrito a mano sí se respeta.
+        saved_path = s.value("export_path", "", type=str).strip()
+        if saved_path:
+            path = Path(saved_path)
+            if UUID_PATTERN.match(path.stem):
+                self._generated_name = f"{uuid.uuid4()}.mp4"
+                path = path.with_name(self._generated_name)
+            self.input_path.setText(str(path))
+
+    @staticmethod
+    def _set_combo_data(combo, value):
+        index = combo.findData(value)
+        if index >= 0:
+            combo.setCurrentIndex(index)
+
+    def _connect_persistence(self):
+        self.combo_ratio.currentIndexChanged.connect(self._save_settings)
+        self.orientation_group.buttonClicked.connect(self._save_settings)
+        self.combo_resolution.currentIndexChanged.connect(self._save_settings)
+        self.combo_fit.currentIndexChanged.connect(self._save_settings)
+        self.combo_background.currentIndexChanged.connect(self._save_settings)
+        self.check_shadow.toggled.connect(self._save_settings)
+        self.spin_margin.valueChanged.connect(self._save_settings)
+        self.fps_group.idClicked.connect(self._save_settings)
+        self.input_path.textChanged.connect(self._save_settings)
+
+    def _save_settings(self, *_):
+        if self._loading:
+            return
+        s = self.settings
+        s.setValue("language", get_language())
+        s.setValue("ratio", self.combo_ratio.currentText())
+        s.setValue("vertical", self.btn_vertical.isChecked())
+        s.setValue("resolution", self.combo_resolution.currentData())
+        s.setValue("fit_mode", self.combo_fit.currentData())
+        s.setValue("background", self.combo_background.currentData())
+        s.setValue("background_image", self._background_path or "")
+        s.setValue("shadow", self.check_shadow.isChecked())
+        s.setValue("margin", self.spin_margin.value())
+        s.setValue("fps", self.fps_group.checkedId())
+        s.setValue("export_path", self.input_path.text())
 
     def closeEvent(self, event):
         if self._worker is not None:
             self._worker.cancel()
             self._worker.wait()
+        self._save_settings()
         super().closeEvent(event)

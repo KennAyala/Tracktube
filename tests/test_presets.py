@@ -22,6 +22,17 @@ def test_dimensiones_conocidas():
     assert presets.get_dimensions("4:5", 1080) == (1080, 1350)
 
 
+def test_orientacion_invierte_el_ratio():
+    assert presets.get_aspect_ratio("16:9", False) == "16:9"
+    assert presets.get_aspect_ratio("16:9", True) == "9:16"
+    assert presets.get_aspect_ratio("4:3", True) == "3:4"
+    assert presets.get_aspect_ratio("5:4", True) == "4:5"
+    assert presets.get_aspect_ratio("1:1", True) == "1:1"
+    for base in presets.BASE_ASPECT_RATIOS:
+        for vertical in (False, True):
+            assert presets.get_aspect_ratio(base, vertical) in presets.ASPECT_RATIOS
+
+
 def test_bitrate_segun_fps():
     assert presets.get_video_bitrate_kbps(1080, 30) == 8000
     assert presets.get_video_bitrate_kbps(1080, 60) == 12000

@@ -20,7 +20,8 @@ def get_ffmpeg_exe():
 
 
 def export_video(image, audio, output, aspect_ratio, short_side, fps, fit_mode,
-                 duration, on_progress=None, cancel_event=None):
+                 duration, background="ninguno", background_image=None, shadow=False,
+                 margin=0, on_progress=None, cancel_event=None):
     """Ejecuta FFmpeg y reporta el progreso (0-100) mediante on_progress.
 
     Bloqueante: pensado para correr en un hilo. Si cancel_event se activa,
@@ -28,7 +29,8 @@ def export_video(image, audio, output, aspect_ratio, short_side, fps, fit_mode,
     """
     output.parent.mkdir(parents=True, exist_ok=True)
     cmd = build_command(get_ffmpeg_exe(), image, audio, output,
-                        aspect_ratio, short_side, fps, fit_mode)
+                        aspect_ratio, short_side, fps, fit_mode,
+                        background, background_image, shadow, margin)
 
     flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
     process = subprocess.Popen(

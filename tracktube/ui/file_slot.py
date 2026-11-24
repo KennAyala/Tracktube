@@ -5,21 +5,25 @@ from PySide6.QtWidgets import (
     QFileDialog, QGroupBox, QHBoxLayout, QLabel, QMessageBox, QPushButton, QVBoxLayout,
 )
 
+from tracktube.i18n import tr
+
 
 class FileSlot(QGroupBox):
     """Input para un archivo: agregar, reemplazar, eliminar y arrastrar y soltar.
 
-    `loader(path)` valida el archivo y devuelve (texto_info, QPixmap | None);
+    `loader(path)` valida el archivo y devuelve ((clave_i18n, parámetros), QPixmap | None);
     si el archivo no es válido debe lanzar ValueError.
     """
 
     changed = Signal()
 
-    def __init__(self, title, extensions, loader, parent=None):
-        super().__init__(title, parent)
+    def __init__(self, title_key, extensions, loader, parent=None):
+        super().__init__(parent)
+        self.title_key = title_key
         self.extensions = extensions
         self.loader = loader
         self.path = None
+        self._info = None
         self.setAcceptDrops(True)
 
         self.thumbnail = QLabel()
@@ -27,11 +31,11 @@ class FileSlot(QGroupBox):
         self.thumbnail.setAlignment(Qt.AlignCenter)
         self.thumbnail.hide()
 
-        self.info = QLabel("Ningún archivo seleccionado")
+        self.info = QLabel()
         self.info.setWordWrap(True)
 
-        self.btn_choose = QPushButton("Agregar")
-        self.btn_remove = QPushButton("Eliminar")
+        self.btn_choose = QPushButton()
+        self.btn_remove = QPushButton()
         self.btn_remove.hide()
         self.btn_choose.clicked.connect(self._choose)
         self.btn_remove.clicked.connect(self.clear)
@@ -44,6 +48,16 @@ class FileSlot(QGroupBox):
         layout.addWidget(self.thumbnail)
         layout.addWidget(self.info, 1)
         layout.addLayout(buttons)
+        self.retranslate()
+
+    def retranslate(self):
+        self.setTitle(tr(self.title_key))
+        self.btn_choose.setText(tr("slot.replace" if self.path else "slot.add"))
+        self.btn_remove.setText(tr("slot.remove"))
+        if self.path is None:
+            self.info.setText(tr("slot.empty"))
+        else:
+            self.info.setText(f"{Path(self.path).name}\n{tr(self._info[0], **self._info[1])}")
 
     def _choose(self):
         patterns = " ".join(f"*{ext}" for ext in self.extensions)
@@ -59,21 +73,21 @@ class FileSlot(QGroupBox):
             QMessageBox.warning(self, self.title(), str(e))
             return
         self.path = path
-        self.info.setText(f"{Path(path).name}\n{info}")
+        self._info = info
         if pixmap is not None:
             self.thumbnail.setPixmap(pixmap.scaled(
                 self.thumbnail.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
             self.thumbnail.show()
-        self.btn_choose.setText("Reemplazar")
         self.btn_remove.show()
+        self.retranslate()
         self.changed.emit()
 
     def clear(self):
         self.path = None
-        self.info.setText("Ningún archivo seleccionado")
+        self._info = None
         self.thumbnail.hide()
-        self.btn_choose.setText("Agregar")
         self.btn_remove.hide()
+        self.retranslate()
         self.changed.emit()
 
     def dragEnterEvent(self, event):

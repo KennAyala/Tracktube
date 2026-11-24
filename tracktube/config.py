@@ -3,9 +3,6 @@ from pathlib import Path
 
 APP_NAME = "Tracktube"
 
-LABEL_IMAGE = "Album art"
-LABEL_AUDIO = "Audio track"
-
 IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".bmp")
 AUDIO_EXTENSIONS = (".wav", ".flac", ".mp3", ".ogg")
 

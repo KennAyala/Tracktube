@@ -33,13 +33,23 @@ def test_duracion_del_audio(media):
     assert media_info.get_audio_duration(media[1]) == pytest.approx(3, abs=0.1)
 
 
-@pytest.mark.parametrize("fit_mode", ["ajustar", "cortar", "estirar", "desenfocado"])
-def test_exporta_mp4_con_caracteristicas_de_youtube(media, tmp_path, fit_mode):
+@pytest.mark.parametrize("fit_mode, background, shadow, margin", [
+    ("ajustar", "ninguno", False, 0),
+    ("ajustar", "ninguno", True, 10),
+    ("ajustar", "desenfocado", False, 0),
+    ("ajustar", "desenfocado", True, 15),
+    ("ajustar", "personalizado", True, 10),
+    ("cortar", "ninguno", False, 0),
+    ("estirar", "ninguno", False, 0),
+])
+def test_exporta_mp4_con_caracteristicas_de_youtube(
+        media, tmp_path, fit_mode, background, shadow, margin):
     image, audio = media
     output = tmp_path / "salida" / "video.mp4"
     progress = []
     export_video(image, audio, output, "16:9", 480, 30, fit_mode,
-                 duration=3, on_progress=progress.append)
+                 duration=3, background=background, background_image=image,
+                 shadow=shadow, margin=margin, on_progress=progress.append)
 
     info = probe(output)
     assert output.exists()

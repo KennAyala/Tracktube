@@ -1,10 +1,9 @@
-from PIL import Image
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import QGroupBox, QLabel, QVBoxLayout
 
-from tracktube.config import LABEL_IMAGE
-from tracktube.core.fit_modes import render_preview
+from tracktube.core.fit_modes import DEFAULT_BACKGROUND, DEFAULT_FIT_MODE, render_preview
+from tracktube.i18n import tr
 
 PREVIEW_BOX = 400
 
@@ -20,10 +19,14 @@ class PreviewWidget(QGroupBox):
     """Muestra cómo se verá el frame que ocupará todo el video."""
 
     def __init__(self, parent=None):
-        super().__init__("Preview", parent)
+        super().__init__(parent)
         self._image = None
         self._ratio = (16, 9)
-        self._mode = "ajustar"
+        self._mode = DEFAULT_FIT_MODE
+        self._background = DEFAULT_BACKGROUND
+        self._shadow = False
+        self._margin = 0
+        self._background_image = None
 
         self.canvas = QLabel()
         self.canvas.setFixedSize(PREVIEW_BOX, PREVIEW_BOX)
@@ -31,6 +34,10 @@ class PreviewWidget(QGroupBox):
 
         layout = QVBoxLayout(self)
         layout.addWidget(self.canvas)
+        self.retranslate()
+
+    def retranslate(self):
+        self.setTitle(tr("preview.title"))
         self._refresh()
 
     def set_image(self, image):
@@ -41,8 +48,12 @@ class PreviewWidget(QGroupBox):
         self._ratio = (ratio_w, ratio_h)
         self._refresh()
 
-    def set_mode(self, mode):
+    def set_options(self, mode, background, shadow, margin, background_image):
         self._mode = mode
+        self._background = background
+        self._shadow = shadow
+        self._margin = margin
+        self._background_image = background_image
         self._refresh()
 
     def _refresh(self):
@@ -55,8 +66,10 @@ class PreviewWidget(QGroupBox):
             pixmap.fill(QColor(40, 40, 40))
             painter = QPainter(pixmap)
             painter.setPen(QColor(150, 150, 150))
-            painter.drawText(pixmap.rect(), Qt.AlignCenter, f"Sin {LABEL_IMAGE}")
+            painter.drawText(pixmap.rect(), Qt.AlignCenter, tr("preview.empty"))
             painter.end()
         else:
-            pixmap = pil_to_pixmap(render_preview(self._image, self._mode, width, height))
+            pixmap = pil_to_pixmap(render_preview(
+                self._image, self._mode, width, height, self._background,
+                self._shadow, self._margin, self._background_image))
         self.canvas.setPixmap(pixmap)

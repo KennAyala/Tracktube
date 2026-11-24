@@ -15,6 +15,9 @@ ASPECT_RATIOS = {
 }
 DEFAULT_ASPECT_RATIO = "16:9"
 
+# Ratios base (horizontales); la orientación vertical los invierte (4:3 -> 3:4)
+BASE_ASPECT_RATIOS = ("1:1", "4:3", "5:4", "16:9")
+
 # La resolución se toma por el lado corto (480p, 720p, ...)
 RESOLUTIONS = (480, 720, 1080, 1440, 2160)
 DEFAULT_RESOLUTION = 1080
@@ -41,6 +44,14 @@ AUDIO_SAMPLE_RATE = 48000
 def _even(value):
     """Redondea al par más cercano (yuv420p exige dimensiones pares)."""
     return int(round(value / 2)) * 2
+
+
+def get_aspect_ratio(base_ratio, vertical):
+    """Devuelve la clave de ASPECT_RATIOS para un ratio base y una orientación."""
+    if not vertical:
+        return base_ratio
+    ratio_w, ratio_h = base_ratio.split(":")
+    return f"{ratio_h}:{ratio_w}"
 
 
 def get_dimensions(aspect_ratio, short_side):
