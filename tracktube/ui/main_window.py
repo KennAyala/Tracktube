@@ -102,8 +102,8 @@ class MainWindow(QMainWindow):
 
         content = QHBoxLayout()
         left = QVBoxLayout()
-        left.addWidget(self.slot_image)
         left.addWidget(self.slot_audio)
+        left.addWidget(self.slot_image)
         left.addWidget(self._build_settings())
         left.addWidget(self.label_short_warning)
         left.addWidget(self._build_export())

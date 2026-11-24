@@ -12,7 +12,7 @@ Reference: [Recommended upload encoding settings](https://support.google.com/you
 
 ## Features
 
-- Two simple inputs: **Album art** (jpg, jpeg, png, bmp) and **Audio track** (wav, flac, mp3, ogg), with buttons to add, replace and delete, plus drag and drop.
+- Two simple inputs: **Audio track** (wav, flac, mp3, ogg) and **Album art** (jpg, jpeg, png, bmp), in that order, with buttons to add, replace and delete, plus drag and drop.
 - **Audio information:** the Audio track section shows the duration, format, bitrate and bit depth of the file (bit depth only applies to lossless formats such as WAV and FLAC; it shows `—` for MP3 and OGG).
 - **Audio preview:** a Play / Stop button to listen to the audio before exporting.
 - **Image from the audio metadata:** when you load an audio file, Tracktube looks for an image in its tags (cover art in MP3 and WAV via ID3, FLAC pictures, and OGG Vorbis / Opus). If there is one, a **Use metadata image** button appears in the Album art section; clicking it uses that image as the album art. It never replaces your image on its own.
@@ -64,7 +64,7 @@ If you prefer, you can skip the virtual environment and install the dependencies
 
 Basic flow:
 
-1. Add an image in **Album art** and an audio file in **Audio track**. If the audio has an image in its tags, you can click **Use metadata image** instead of adding one.
+1. Add an audio file in **Audio track**, then an image in **Album art**. If the audio has an image in its tags, you can click **Use metadata image** instead of adding one.
 2. Check the audio information and, if you want, listen to it with **Play**.
 3. Choose aspect ratio, orientation, resolution, FPS and image fit.
 4. Check the **Preview** (you can save it as an image with **Export preview as image**).
