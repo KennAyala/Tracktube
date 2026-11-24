@@ -15,3 +15,6 @@ else:
 DEFAULT_EXPORT_DIR = "exports"
 
 ICON_PATH = BASE_DIR / "assets" / "logo.png"
+
+# Configuración del usuario: user/conf.ini junto a la app (no se sube a git)
+SETTINGS_PATH = BASE_DIR / "user" / "conf.ini"

@@ -2,25 +2,28 @@ import re
 import uuid
 from pathlib import Path
 
-from PySide6.QtCore import QSettings, QSize, Qt
-from PySide6.QtGui import QIcon, QPainter, QPen, QPixmap
+from PySide6.QtCore import QEvent, QSize, Qt
+from PySide6.QtGui import QIcon, QPainter, QPalette, QPen, QPixmap
 from PySide6.QtWidgets import (
     QButtonGroup, QCheckBox, QComboBox, QFileDialog, QGridLayout, QGroupBox, QHBoxLayout,
     QLabel, QLineEdit, QMainWindow, QMessageBox, QProgressBar, QPushButton, QRadioButton,
     QSpinBox, QStyle, QToolButton, QVBoxLayout, QWidget,
 )
 
-from tracktube.config import APP_NAME, AUDIO_EXTENSIONS, IMAGE_EXTENSIONS
+from tracktube.config import APP_NAME, AUDIO_EXTENSIONS, DEFAULT_EXPORT_DIR, IMAGE_EXTENSIONS
 from tracktube.core import export_path, media_info, presets
 from tracktube.core.fit_modes import (
     BACKGROUNDS, DEFAULT_BACKGROUND, DEFAULT_FIT_MODE, FIT_MODES, MAX_MARGIN,
 )
 from tracktube.i18n import DEFAULT_LANGUAGE, LANGUAGES, get_language, set_language, tr
 from tracktube.log import logger
+from tracktube.settings import create_settings
 from tracktube.ui.export_worker import ExportWorker
+from tracktube.ui.audio_slot import AudioSlot
 from tracktube.ui.file_slot import FileSlot
 from tracktube.ui.log_panel import LogPanel
 from tracktube.ui.preview_widget import PreviewWidget, pil_to_pixmap
+from tracktube.ui.theme import DEFAULT_THEME, THEMES, apply_theme
 
 UUID_PATTERN = re.compile(r"^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$")
 
@@ -54,7 +57,7 @@ class MainWindow(QMainWindow):
     def __init__(self, settings=None):
         super().__init__()
         self.setWindowTitle(APP_NAME)
-        self.settings = settings or QSettings(APP_NAME, APP_NAME)
+        self.settings = settings or create_settings()
         set_language(self.settings.value("language", DEFAULT_LANGUAGE, type=str))
 
         # El panel de log se crea primero para registrar desde el arranque
@@ -71,7 +74,7 @@ class MainWindow(QMainWindow):
         self._progress_state = "idle"
 
         self.slot_image = FileSlot("slot.image", IMAGE_EXTENSIONS, self._load_image)
-        self.slot_audio = FileSlot("slot.audio", AUDIO_EXTENSIONS, self._load_audio)
+        self.slot_audio = AudioSlot("slot.audio", AUDIO_EXTENSIONS, self._load_audio)
         self.slot_image.changed.connect(self._on_image_changed)
         self.slot_audio.changed.connect(self._on_audio_changed)
 
@@ -116,6 +119,12 @@ class MainWindow(QMainWindow):
     # --- construcción de la UI -------------------------------------------------
 
     def _build_header(self):
+        self.label_theme = QLabel()
+        self.combo_theme = QComboBox()
+        for theme in THEMES:  # "Sistema" va primero y es el valor por defecto
+            self.combo_theme.addItem("", theme)
+        self.combo_theme.currentIndexChanged.connect(self._on_theme_changed)
+
         self.label_language = QLabel()
         self.combo_language = QComboBox()
         for code, name in LANGUAGES.items():
@@ -126,6 +135,9 @@ class MainWindow(QMainWindow):
         header = QHBoxLayout()
         header.addWidget(self.btn_log)
         header.addStretch(1)
+        header.addWidget(self.label_theme)
+        header.addWidget(self.combo_theme)
+        header.addSpacing(12)
         header.addWidget(self.label_language)
         header.addWidget(self.combo_language)
         return header
@@ -140,16 +152,15 @@ class MainWindow(QMainWindow):
             self.combo_ratio.addItem(base_ratio, base_ratio)
         self.combo_ratio.setCurrentIndex(
             self.combo_ratio.findData(presets.DEFAULT_ASPECT_RATIO))
-        color = self.palette().color(self.foregroundRole())
         self.btn_horizontal = QToolButton()
         self.btn_vertical = QToolButton()
         self.orientation_group = QButtonGroup(self)
-        for button, vertical in ((self.btn_horizontal, False), (self.btn_vertical, True)):
-            button.setIcon(orientation_icon(vertical, color))
+        for button in (self.btn_horizontal, self.btn_vertical):
             button.setIconSize(QSize(24, 24))
             button.setCheckable(True)
             self.orientation_group.addButton(button)
         self.btn_horizontal.setChecked(True)
+        self._update_orientation_icons()
         ratio_row = QHBoxLayout()
         ratio_row.addWidget(self.combo_ratio, 1)
         ratio_row.addWidget(self.btn_horizontal)
@@ -237,37 +248,69 @@ class MainWindow(QMainWindow):
         self.group_export = QGroupBox()
         layout = QVBoxLayout(self.group_export)
 
-        self.label_path = QLabel()
-        self.input_path = QLineEdit(export_path.new_default_path())
+        # Carpeta y nombre de archivo van separados; el botón de refrescar queda
+        # a la altura del nombre porque es lo que cambia
+        self.label_folder = QLabel()
+        self.input_folder = QLineEdit(DEFAULT_EXPORT_DIR)
+        self.btn_folder = QPushButton()
+        self.btn_folder.clicked.connect(self._change_folder)
+        self.label_filename = QLabel()
+        self.input_filename = QLineEdit(export_path.new_default_filename())
+        self.input_filename.setMinimumWidth(340)  # que quepa un uuid completo con .mp4
         self.btn_refresh_uuid = QToolButton()
         self.btn_refresh_uuid.setIcon(self.style().standardIcon(QStyle.SP_BrowserReload))
         self.btn_refresh_uuid.clicked.connect(self._refresh_uuid)
-        self.btn_folder = QPushButton()
-        self.btn_folder.clicked.connect(self._change_folder)
-        path_row = QHBoxLayout()
-        path_row.addWidget(self.input_path, 1)
-        path_row.addWidget(self.btn_refresh_uuid)
-        path_row.addWidget(self.btn_folder)
+        path_grid = QGridLayout()
+        path_grid.addWidget(self.label_folder, 0, 0)
+        path_grid.addWidget(self.input_folder, 0, 1)
+        path_grid.addWidget(self.btn_folder, 0, 2)
+        path_grid.addWidget(self.label_filename, 1, 0)
+        path_grid.addWidget(self.input_filename, 1, 1)
+        path_grid.addWidget(self.btn_refresh_uuid, 1, 2)
+        path_grid.setColumnStretch(1, 1)
 
         self.btn_export = QPushButton()
         self.btn_export.clicked.connect(self._start_export)
         self.btn_cancel = QPushButton()
         self.btn_cancel.clicked.connect(self._cancel_export)
         self.btn_cancel.hide()
+        # El estado va en una etiqueta porque el estilo de Windows 11 no dibuja el texto
+        # de la barra de progreso
+        self.label_progress = QLabel()
         action_row = QHBoxLayout()
         action_row.addWidget(self.btn_export)
         action_row.addWidget(self.btn_cancel)
         action_row.addStretch(1)
+        action_row.addWidget(self.label_progress)
 
         self.progress = QProgressBar()
         self.progress.setRange(0, 100)
-        self.progress.setAlignment(Qt.AlignCenter)
+        self.progress.setTextVisible(False)
+        self.progress.valueChanged.connect(self._update_progress_label)
 
-        layout.addWidget(self.label_path)
-        layout.addLayout(path_row)
+        layout.addLayout(path_grid)
         layout.addLayout(action_row)
         layout.addWidget(self.progress)
         return self.group_export
+
+    # --- tema ------------------------------------------------------------------
+
+    def _on_theme_changed(self):
+        theme = self.combo_theme.currentData()
+        logger.info("Theme changed to %s", theme)
+        apply_theme(theme)
+        self._save_settings()
+
+    def _update_orientation_icons(self):
+        """Dibuja los íconos de orientación con el color del tema actual."""
+        color = self.palette().color(QPalette.ButtonText)
+        self.btn_horizontal.setIcon(orientation_icon(False, color))
+        self.btn_vertical.setIcon(orientation_icon(True, color))
+
+    def changeEvent(self, event):
+        if event.type() == QEvent.PaletteChange and hasattr(self, "btn_vertical"):
+            self._update_orientation_icons()
+        super().changeEvent(event)
 
     # --- idioma ----------------------------------------------------------------
 
@@ -278,6 +321,8 @@ class MainWindow(QMainWindow):
         self._save_settings()
 
     def retranslate_ui(self):
+        self.label_theme.setText(f"{tr('header.theme')}:")
+        self._retranslate_combo(self.combo_theme, "theme")
         self.label_language.setText(f"{tr('header.language')}:")
         self.slot_image.retranslate()
         self.slot_audio.retranslate()
@@ -306,7 +351,8 @@ class MainWindow(QMainWindow):
                 button.setText(tr("settings.fps_min", fps=fps))
 
         self.group_export.setTitle(tr("export.title"))
-        self.label_path.setText(tr("export.path"))
+        self.label_folder.setText(tr("export.folder"))
+        self.label_filename.setText(tr("export.filename"))
         self.btn_refresh_uuid.setToolTip(tr("export.new_uuid"))
         self.btn_folder.setText(tr("export.change_folder"))
         self.btn_export.setText(tr("export.button"))
@@ -331,10 +377,17 @@ class MainWindow(QMainWindow):
         return info, pil_to_pixmap(image)
 
     def _load_audio(self, path):
-        duration = media_info.get_audio_duration(path)
-        self._duration = duration
-        logger.info("Audio track loaded: %s (%.2fs)", path, duration)
-        return ("slot.audio_info", {"duration": format_duration(duration)}), None
+        audio = media_info.get_audio_info(path)
+        self._duration = audio.duration
+        logger.info("Audio track loaded: %s (%.2fs, %s, bitrate=%s, bit depth=%s)",
+                    path, audio.duration, audio.format, audio.bitrate, audio.bit_depth)
+        info = ("slot.audio_info", {
+            "duration": format_duration(audio.duration),
+            "format": audio.format,
+            "bitrate": f"{round(audio.bitrate / 1000)} kbps" if audio.bitrate else "—",
+            "bit_depth": f"{audio.bit_depth}-bit" if audio.bit_depth else "—",
+        })
+        return info, None
 
     def _on_image_changed(self):
         if self.slot_image.path is None:
@@ -441,26 +494,22 @@ class MainWindow(QMainWindow):
     # --- ruta de exportación ---------------------------------------------------
 
     def _change_folder(self):
-        current = export_path.resolve_path(self.input_path.text()).parent
+        current = export_path.build_path(
+            self.input_folder.text(), self.input_filename.text() or "a.mp4").parent
         folder = QFileDialog.getExistingDirectory(
             self, tr("export.folder_dialog"), str(current))
         if folder:
-            self.input_path.setText(
-                export_path.change_folder(self.input_path.text(), folder))
+            self.input_folder.setText(folder)
 
     def _refresh_uuid(self):
-        """Cambia el nombre del archivo por un uuid nuevo, conservando la carpeta."""
-        new_name = f"{uuid.uuid4()}.mp4"
+        """Cambia el nombre del archivo por un uuid nuevo."""
+        new_name = export_path.new_default_filename()
         logger.debug("New UUID: %s", new_name)
-        try:
-            self.input_path.setText(
-                str(Path(self.input_path.text().strip()).with_name(new_name)))
-        except ValueError:  # ruta vacía o sin nombre de archivo
-            self.input_path.setText(export_path.new_default_path())
+        self.input_filename.setText(new_name)
 
     def _renew_uuid(self):
         """Si el nombre del archivo es un uuid, asigna uno nuevo; un nombre propio se respeta."""
-        if UUID_PATTERN.match(Path(self.input_path.text().strip()).stem):
+        if UUID_PATTERN.match(Path(self.input_filename.text().strip()).stem):
             self._refresh_uuid()
 
     def _confirm_overwrite(self, output):
@@ -481,6 +530,12 @@ class MainWindow(QMainWindow):
             self.progress.setFormat(tr("export.done"))
         else:
             self.progress.setFormat(tr("export.idle"))
+        self._update_progress_label()
+
+    def _update_progress_label(self, *_):
+        """Muestra el estado de la exportación junto al botón (ej. «Exporting… 45%»)."""
+        self.label_progress.setText(
+            self.progress.format().replace("%p", str(self.progress.value())))
 
     def _set_progress_state(self, state, value):
         self._progress_state = state
@@ -488,7 +543,7 @@ class MainWindow(QMainWindow):
         self._update_progress_format()
 
     def _start_export(self):
-        if not self.input_path.text().strip():
+        if not self.input_filename.text().strip():
             QMessageBox.warning(self, APP_NAME, tr("msg.no_path"))
             return
         background = self.combo_background.currentData()
@@ -497,7 +552,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, APP_NAME, tr("msg.no_background"))
             return
 
-        output = export_path.resolve_path(self.input_path.text())
+        output = export_path.build_path(self.input_folder.text(), self.input_filename.text())
         if output.exists():
             logger.warning("Output file already exists: %s", output)
             if not self._confirm_overwrite(output):
@@ -562,6 +617,7 @@ class MainWindow(QMainWindow):
     def _load_settings(self):
         """Restaura los ajustes y la ruta de exportación del usuario."""
         s = self.settings
+        self._set_combo_data(self.combo_theme, s.value("theme", DEFAULT_THEME, type=str))
         self._set_combo_data(self.combo_ratio,
                              s.value("ratio", presets.DEFAULT_ASPECT_RATIO, type=str))
         if s.value("vertical", False, type=bool):
@@ -581,10 +637,16 @@ class MainWindow(QMainWindow):
         if background_path and Path(background_path).is_file():
             self._set_background_image(background_path)
 
+        folder = s.value("export_folder", "", type=str).strip()
+        filename = s.value("export_filename", "", type=str).strip()
+        legacy_path = s.value("export_path", "", type=str).strip()  # versión anterior
+        if not (folder or filename) and legacy_path:
+            folder, filename = str(Path(legacy_path).parent), Path(legacy_path).name
+        if folder:
+            self.input_folder.setText(folder)
         # Al abrir la app el uuid siempre es nuevo; un nombre escrito a mano se respeta.
-        saved_path = s.value("export_path", "", type=str).strip()
-        if saved_path:
-            self.input_path.setText(saved_path)
+        if filename:
+            self.input_filename.setText(filename)
             self._renew_uuid()
 
     @staticmethod
@@ -602,13 +664,15 @@ class MainWindow(QMainWindow):
         self.check_shadow.toggled.connect(self._save_settings)
         self.spin_margin.valueChanged.connect(self._save_settings)
         self.fps_group.idClicked.connect(self._save_settings)
-        self.input_path.textChanged.connect(self._save_settings)
+        self.input_folder.textChanged.connect(self._save_settings)
+        self.input_filename.textChanged.connect(self._save_settings)
 
     def _save_settings(self, *_):
         if self._loading:
             return
         s = self.settings
         s.setValue("language", get_language())
+        s.setValue("theme", self.combo_theme.currentData())
         s.setValue("ratio", self.combo_ratio.currentData())
         s.setValue("vertical", self.btn_vertical.isChecked())
         s.setValue("resolution", self.combo_resolution.currentData())
@@ -618,7 +682,9 @@ class MainWindow(QMainWindow):
         s.setValue("shadow", self.check_shadow.isChecked())
         s.setValue("margin", self.spin_margin.value())
         s.setValue("fps", self.fps_group.checkedId())
-        s.setValue("export_path", self.input_path.text())
+        s.setValue("export_folder", self.input_folder.text())
+        s.setValue("export_filename", self.input_filename.text())
+        s.sync()  # escribe user/conf.ini ya, sin esperar a que se cierre la app
 
     def closeEvent(self, event):
         if self._worker is not None:

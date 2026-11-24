@@ -40,14 +40,14 @@ class FileSlot(QGroupBox):
         self.btn_choose.clicked.connect(self._choose)
         self.btn_remove.clicked.connect(self.clear)
 
-        buttons = QVBoxLayout()
-        buttons.addWidget(self.btn_choose)
-        buttons.addWidget(self.btn_remove)
+        self.buttons_layout = QVBoxLayout()
+        self.buttons_layout.addWidget(self.btn_choose)
+        self.buttons_layout.addWidget(self.btn_remove)
 
         layout = QHBoxLayout(self)
         layout.addWidget(self.thumbnail)
         layout.addWidget(self.info, 1)
-        layout.addLayout(buttons)
+        layout.addLayout(self.buttons_layout)
         self.retranslate()
 
     def retranslate(self):

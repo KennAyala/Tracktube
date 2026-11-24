@@ -8,6 +8,7 @@ from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from tracktube import i18n
+from tracktube.ui.theme import apply_theme
 
 
 @pytest.fixture(scope="session")
@@ -38,3 +39,4 @@ def make_window(qapp, settings_file, monkeypatch):
         window.close()
         window.log_panel.detach()
     i18n.set_language("en")
+    apply_theme("system")
