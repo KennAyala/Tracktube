@@ -30,7 +30,7 @@ def test_el_audio_va_antes_que_la_imagen(qapp, make_window):
     window.show()
     qapp.processEvents()
     assert window.slot_audio.geometry().bottom() < window.slot_image.geometry().top()
-    assert window.slot_image.geometry().bottom() < window.group_settings.geometry().top()
+    assert window.slot_audio.geometry().left() == window.slot_image.geometry().left()
 
 
 # --- Imagen de metadatos --------------------------------------------------------

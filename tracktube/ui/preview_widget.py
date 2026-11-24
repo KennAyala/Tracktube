@@ -1,13 +1,17 @@
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QImage, QPainter, QPixmap
-from PySide6.QtWidgets import QGroupBox, QLabel, QPushButton, QVBoxLayout
+from PySide6.QtWidgets import QGroupBox, QLabel, QPushButton, QSizePolicy, QVBoxLayout
 
 from tracktube.core.fit_modes import (
     DEFAULT_BACKGROUND, DEFAULT_BLUR, DEFAULT_FIT_MODE, render_preview,
 )
 from tracktube.i18n import tr
 
-PREVIEW_BOX = 400
+# La vista previa ocupa el espacio disponible: no pide menos de PREVIEW_MIN para que la
+# ventana pueda ser baja, y abre con PREVIEW_HINT (se agranda al agrandar la ventana)
+PREVIEW_MIN = (320, 180)
+PREVIEW_HINT = (400, 250)
+RESIZE_DELAY_MS = 40  # junta los eventos de tamaño mientras se arrastra el borde de la ventana
 
 
 def pil_to_pixmap(image):
@@ -16,6 +20,22 @@ def pil_to_pixmap(image):
     data = image.tobytes("raw", "RGBA")
     qimage = QImage(data, image.width, image.height, image.width * 4, QImage.Format_RGBA8888)
     return QPixmap.fromImage(qimage.copy())
+
+
+class _Canvas(QLabel):
+    """Etiqueta que avisa cuando cambia de tamaño y no deja que la imagen fije el suyo."""
+
+    resized = Signal()
+
+    def sizeHint(self):
+        return QSize(*PREVIEW_HINT)
+
+    def minimumSizeHint(self):
+        return QSize(*PREVIEW_MIN)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.resized.emit()
 
 
 class PreviewWidget(QGroupBox):
@@ -35,16 +55,22 @@ class PreviewWidget(QGroupBox):
         self._darkness = 0
         self._blur = DEFAULT_BLUR
 
-        self.canvas = QLabel()
-        self.canvas.setFixedSize(PREVIEW_BOX, PREVIEW_BOX)
+        self.canvas = _Canvas()
+        self.canvas.setMinimumSize(*PREVIEW_MIN)
+        self.canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.canvas.setAlignment(Qt.AlignCenter)
+        self._resize_timer = QTimer(self)
+        self._resize_timer.setSingleShot(True)
+        self._resize_timer.setInterval(RESIZE_DELAY_MS)
+        self._resize_timer.timeout.connect(self._refresh)
+        self.canvas.resized.connect(self._resize_timer.start)
 
         self.btn_export_image = QPushButton()
         self.btn_export_image.setEnabled(False)  # necesita una imagen cargada
         self.btn_export_image.clicked.connect(self.export_requested)
 
         layout = QVBoxLayout(self)
-        layout.addWidget(self.canvas)
+        layout.addWidget(self.canvas, 1)
         layout.addWidget(self.btn_export_image)
         self.retranslate()
 
@@ -76,8 +102,11 @@ class PreviewWidget(QGroupBox):
 
     def _refresh(self):
         ratio_w, ratio_h = self._ratio
-        scale = PREVIEW_BOX / max(ratio_w, ratio_h)
-        width, height = round(ratio_w * scale), round(ratio_h * scale)
+        # El cuadro del ratio se ajusta al espacio que tenga la etiqueta en este momento
+        box_w = max(self.canvas.width(), PREVIEW_MIN[0])
+        box_h = max(self.canvas.height(), PREVIEW_MIN[1])
+        scale = min(box_w / ratio_w, box_h / ratio_h)
+        width, height = max(2, round(ratio_w * scale)), max(2, round(ratio_h * scale))
 
         if self._image is None:
             pixmap = QPixmap(width, height)

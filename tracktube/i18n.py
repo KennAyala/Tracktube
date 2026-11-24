@@ -34,7 +34,7 @@ STRINGS = {
         "preview.export_image_tip": "Save the preview as a JPG (default) or PNG image "
                                     "at the resolution of the video",
         "preview.export_dialog": "Export preview as image",
-        "settings.title": "Settings",
+        "settings.title": "Output settings",
         "settings.ratio": "Aspect ratio",
         "settings.horizontal": "Horizontal",
         "settings.vertical": "Vertical",
@@ -116,7 +116,7 @@ STRINGS = {
         "preview.export_image_tip": "Guarda la vista previa como imagen JPG (por defecto) o PNG "
                                     "con la resolución del video",
         "preview.export_dialog": "Exportar vista previa como imagen",
-        "settings.title": "Ajustes",
+        "settings.title": "Ajustes de salida",
         "settings.ratio": "Relación de aspecto",
         "settings.horizontal": "Horizontal",
         "settings.vertical": "Vertical",

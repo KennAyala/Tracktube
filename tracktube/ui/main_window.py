@@ -101,18 +101,30 @@ class MainWindow(QMainWindow):
         root = QVBoxLayout(central)
         root.addLayout(self._build_header())
 
-        content = QHBoxLayout()
+        # Izquierda: audio e imagen. Derecha: ajustes de salida y, justo debajo, la vista
+        # previa. Debajo de las dos columnas, el aviso de Short y Exportar a todo lo ancho.
         left = QVBoxLayout()
         left.addWidget(self.slot_audio)
         left.addWidget(self.slot_image)
-        left.addWidget(self._build_settings())
-        left.addWidget(self.label_short_warning)
-        left.addWidget(self._build_export())
         left.addStretch(1)
-        content.addLayout(left, 1)
-        content.addWidget(self.preview)
-        content.addWidget(self.log_panel)
-        root.addLayout(content)
+
+        right = QVBoxLayout()
+        right.addWidget(self._build_settings())
+        right.addWidget(self.preview, 1)
+
+        columns = QHBoxLayout()
+        columns.addLayout(left, 1)
+        columns.addLayout(right, 1)
+
+        main = QVBoxLayout()
+        main.addLayout(columns, 1)
+        main.addWidget(self.label_short_warning)
+        main.addWidget(self._build_export())
+
+        body = QHBoxLayout()
+        body.addLayout(main, 1)
+        body.addWidget(self.log_panel)  # el log abre a la derecha de todo
+        root.addLayout(body)
 
         self._load_settings()
         self._connect_persistence()
