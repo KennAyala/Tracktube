@@ -61,6 +61,39 @@ def test_exporta_mp4_con_caracteristicas_de_youtube(
     assert progress and progress[-1] == 100
 
 
+@pytest.mark.parametrize("fit_mode, background", [
+    ("ajustar", "ninguno"),
+    ("ajustar", "personalizado"),
+    ("ajustar", "desenfocado"),
+    ("cortar", "ninguno"),
+    ("estirar", "ninguno"),
+])
+def test_png_transparente_no_deja_fondo_blanco(media, tmp_path, fit_mode, background):
+    _, audio = media
+    # Imagen 16:9 para que llene el cuadro: izquierda transparente (RGB blanco), derecha roja
+    art = tmp_path / "transparent.png"
+    image = Image.new("RGBA", (854, 480), (255, 255, 255, 0))
+    image.paste((255, 0, 0, 255), (427, 0, 854, 480))
+    image.save(art)
+    custom = tmp_path / "blue.png"
+    Image.new("RGB", (200, 200), (0, 0, 255)).save(custom)
+
+    output = tmp_path / "t.mp4"
+    export_video(art, audio, output, "16:9", 480, 1, fit_mode, duration=3,
+                 background=background, background_image=custom)
+    frame = tmp_path / "frame.png"
+    subprocess.run([get_ffmpeg_exe(), "-y", "-loglevel", "error", "-ss", "1",
+                    "-i", str(output), "-frames:v", "1", str(frame)], check=True)
+    pixels = Image.open(frame).convert("RGB")
+
+    left, right = pixels.getpixel((100, 240)), pixels.getpixel((750, 240))
+    assert right[0] > 200 and right[1] < 60 and right[2] < 60  # parte opaca roja
+    if background == "personalizado":
+        assert left[2] > 200 and left[0] < 60  # se ve el fondo azul
+    else:
+        assert max(left) < 60  # negro (o fondo oscuro), nunca blanco
+
+
 def test_la_exportacion_queda_en_el_log(media, tmp_path):
     from test_log import capture
     from tracktube.log import logger

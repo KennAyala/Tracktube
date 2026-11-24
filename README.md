@@ -10,6 +10,7 @@ Reference: [Recommended upload encoding settings](https://support.google.com/you
 
 - Two simple inputs: **Album art** (jpg, jpeg, png, bmp) and **Audio track** (wav, flac, mp3, ogg), with buttons to add, replace and delete, plus drag and drop.
 - Live **preview** of the frame that will fill the whole video.
+- **PNG transparency is preserved:** transparent areas show the selected background (black when there is none), because MP4 has no alpha channel. The shadow follows the album art silhouette.
 - **Aspect ratios:** 1:1, 4:3, 5:4 and 16:9, with **horizontal** (default) and **vertical** orientation buttons (3:4, 4:5 and 9:16).
 - **Resolutions:** 480p, 720p, 1080p, 1440p and 2160p (4K). Resolution is taken from the short side.
 - **FPS:** Minimum (1), 15, 24, 30 and 60 (default).
@@ -129,6 +130,7 @@ What they cover:
 
 - [ ] Add, replace and delete the image and the audio (with the buttons and by dragging).
 - [ ] The preview updates when changing ratio, orientation, fit, background, shadow and margin.
+- [ ] A PNG with transparency shows the background through its transparent areas (no white box) in the thumbnail, the preview and the exported video.
 - [ ] Switching to vertical renames the ratio selector entries to 3:4, 4:5 and 9:16.
 - [ ] The ✕ button next to the margin resets it to 0.
 - [ ] The Short warning shows for audio of 3:00 or less in 1:1 or vertical, and hides in horizontal or above 3:00.

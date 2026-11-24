@@ -87,6 +87,55 @@ def test_margen_aleja_el_album_art_del_borde():
     assert con_margen.getpixel((50, 50)) == (255, 0, 0)
 
 
+def transparent_image():
+    """Mitad izquierda transparente (con RGB blanco debajo) y mitad derecha roja."""
+    image = Image.new("RGBA", (100, 100), (255, 255, 255, 0))
+    image.paste((255, 0, 0, 255), (50, 0, 100, 100))
+    return image
+
+
+@pytest.mark.parametrize("mode", FIT_MODES)
+def test_preview_conserva_la_transparencia(mode):
+    result = render_preview(transparent_image(), mode, 100, 100)
+    assert result.getpixel((25, 50)) == (0, 0, 0)  # transparente -> fondo negro, no blanco
+    assert result.getpixel((75, 50)) == (255, 0, 0)
+
+
+def test_transparencia_deja_ver_el_fondo_personalizado():
+    custom = Image.new("RGB", (100, 100), (0, 0, 255))
+    result = render_preview(transparent_image(), "ajustar", 100, 100,
+                            "personalizado", False, 0, custom)
+    assert result.getpixel((25, 50)) == (0, 0, 255)
+    assert result.getpixel((75, 50)) == (255, 0, 0)
+
+
+def test_sombra_sigue_la_silueta_del_album_art():
+    custom = Image.new("RGB", (400, 400), (255, 255, 255))
+    result = render_preview(transparent_image(), "ajustar", 400, 400,
+                            "personalizado", True, 20, custom)
+    # Dentro de la parte transparente no hay album art, solo fondo (y algo de sombra
+    # difuminada); la parte opaca sí cubre el fondo
+    assert result.getpixel((300, 200)) == (255, 0, 0)
+    assert result.getpixel((150, 200)) != (255, 0, 0)
+
+
+def test_transparencia_en_el_filtro_de_ffmpeg():
+    for mode in ("cortar", "estirar"):
+        graph = build_filter_graph(mode, 1920, 1080, 30, transparent=True)
+        assert "overlay=0:0" in graph and graph.endswith("fps=30[v]")
+        assert build_filter_graph(mode, 1920, 1080, 30) != graph
+    # "Ajustar" sin extras ya no usa el filtro simple con pad
+    assert "pad=" not in build_filter_graph("ajustar", 1920, 1080, 30, transparent=True)
+    assert "pad=" in build_filter_graph("ajustar", 1920, 1080, 30)
+
+
+@pytest.mark.parametrize("background", ["desenfocado", "personalizado"])
+def test_fondos_con_alfa_se_componen_sobre_negro(background):
+    graph = build_filter_graph("ajustar", 1920, 1080, 30, background)
+    assert "[flat]" in graph
+    assert "[flat]" not in build_filter_graph("ajustar", 1920, 1080, 30, "ninguno", True)
+
+
 def test_fondo_personalizado_se_ve_en_el_preview():
     image = Image.new("RGB", (100, 100), (255, 0, 0))
     custom = Image.new("RGB", (100, 100), (0, 0, 255))

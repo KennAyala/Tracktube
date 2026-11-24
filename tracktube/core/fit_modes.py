@@ -46,16 +46,18 @@ def _inset(width, height, margin):
 
 
 def build_filter_graph(mode, width, height, fps, background=DEFAULT_BACKGROUND,
-                       shadow=False, margin=0):
+                       shadow=False, margin=0, transparent=False):
     """Devuelve el filter_complex de FFmpeg con salida etiquetada [v].
 
     El input se lee a 1 fps y `fps` duplica el frame al final, así los
     filtros pesados solo se ejecutan una vez por segundo.
     El fondo "personalizado" toma su imagen del input [2:v].
+    Si la imagen tiene transparencia (`transparent`), se compone sobre el fondo
+    (negro cuando no hay fondo), porque el MP4 no admite canal alfa.
     """
     size = f"{width}:{height}"
     if mode == "ajustar":
-        if background == DEFAULT_BACKGROUND and not shadow and margin == 0:
+        if background == DEFAULT_BACKGROUND and not shadow and margin == 0 and not transparent:
             chain = (
                 f"[0:v]scale={size}:force_original_aspect_ratio=decrease,"
                 f"pad={size}:(ow-iw)/2:(oh-ih)/2:black,"
@@ -71,6 +73,13 @@ def build_filter_graph(mode, width, height, fps, background=DEFAULT_BACKGROUND,
         chain = f"[0:v]scale={size},"
     else:
         raise ValueError(f"Modo de ajuste desconocido: {mode}")
+    if transparent:
+        return (
+            f"color=c=black:s={width}x{height}:r=1,format=rgba[base];"
+            f"{chain}format=rgba[art];"
+            f"[base][art]overlay=0:0:format=auto[flat];"
+            f"[flat]{_OUTPUT},fps={fps}[v]"
+        )
     return f"{chain}{_OUTPUT},fps={fps}[v]"
 
 
@@ -115,19 +124,28 @@ def _build_framed_graph(width, height, fps, background, shadow, margin):
         parts.append(f"{art}[art]")
         parts.append("[bg][art]overlay=(W-w)/2:(H-h)/2:format=auto[framed]")
 
-    parts.append(f"[framed]{_OUTPUT},fps={fps}[v]")
+    last = "[framed]"
+    if background != DEFAULT_BACKGROUND:
+        # Un fondo desenfocado de una imagen transparente o una imagen de fondo con
+        # transparencia también llevan alfa: se compone sobre negro.
+        parts.append(f"color=c=black:s={width}x{height}:r=1,format=rgba[flat_base]")
+        parts.append("[flat_base][framed]overlay=0:0:format=auto[flat]")
+        last = "[flat]"
+
+    parts.append(f"{last}{_OUTPUT},fps={fps}[v]")
     return ";".join(parts)
 
 
 def render_preview(image, mode, width, height, background=DEFAULT_BACKGROUND,
                    shadow=False, margin=0, background_image=None):
     """Devuelve una imagen PIL de width x height con el mismo ajuste del video."""
-    image = ImageOps.exif_transpose(image).convert("RGB")
+    # Se trabaja en RGBA para conservar la transparencia; al final se compone sobre negro
+    image = ImageOps.exif_transpose(image).convert("RGBA")
     size = (width, height)
     if mode == "cortar":
-        return ImageOps.fit(image, size, Image.LANCZOS)
+        return _flatten(ImageOps.fit(image, size, Image.LANCZOS)).convert("RGB")
     if mode == "estirar":
-        return image.resize(size, Image.LANCZOS)
+        return _flatten(image.resize(size, Image.LANCZOS)).convert("RGB")
     if mode != "ajustar":
         raise ValueError(f"Modo de ajuste desconocido: {mode}")
 
@@ -136,23 +154,32 @@ def render_preview(image, mode, width, height, background=DEFAULT_BACKGROUND,
         canvas = canvas.filter(ImageFilter.GaussianBlur(_blur_sigma(width, height)))
     elif background == "personalizado" and background_image is not None:
         canvas = ImageOps.fit(
-            ImageOps.exif_transpose(background_image).convert("RGB"), size, Image.LANCZOS)
+            ImageOps.exif_transpose(background_image).convert("RGBA"), size, Image.LANCZOS)
     elif background in ("ninguno", "personalizado"):
-        canvas = Image.new("RGB", size, (0, 0, 0))
+        canvas = Image.new("RGBA", size, (0, 0, 0, 255))
     else:
         raise ValueError(f"Fondo desconocido: {background}")
+    canvas = _flatten(canvas)
 
     inset = _inset(width, height, margin)
     art = ImageOps.contain(image, (width - 2 * inset, height - 2 * inset), Image.LANCZOS)
     x, y = (width - art.width) // 2, (height - art.height) // 2
 
     if shadow:
+        # La sombra sigue la silueta (canal alfa) del album art
         sigma, spread, pad, offset = _shadow_params(width, height)
         shadow_w, shadow_h = art.width + 2 * spread, art.height + 2 * spread
+        silhouette = art.getchannel("A").resize((shadow_w, shadow_h), Image.LANCZOS)
+        silhouette = silhouette.point(lambda value: round(value * _SHADOW_OPACITY))
         mask = Image.new("L", (shadow_w + 2 * pad, shadow_h + 2 * pad), 0)
-        mask.paste(round(255 * _SHADOW_OPACITY), (pad, pad, pad + shadow_w, pad + shadow_h))
+        mask.paste(silhouette, (pad, pad))
         mask = mask.filter(ImageFilter.GaussianBlur(sigma))
-        canvas.paste((0, 0, 0), (x - spread - pad, y - spread - pad + offset), mask)
+        canvas.paste((0, 0, 0, 255), (x - spread - pad, y - spread - pad + offset), mask)
 
-    canvas.paste(art, (x, y))
-    return canvas
+    canvas.alpha_composite(art, (x, y))
+    return canvas.convert("RGB")
+
+
+def _flatten(image):
+    """Compone una imagen RGBA sobre negro (el MP4 no admite transparencia)."""
+    return Image.alpha_composite(Image.new("RGBA", image.size, (0, 0, 0, 255)), image)

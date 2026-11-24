@@ -15,6 +15,11 @@ def get_audio_duration(path):
     return float(audio.info.length)
 
 
+def has_transparency(image):
+    """True si la imagen PIL tiene canal alfa o transparencia indexada (PNG)."""
+    return image.mode in ("RGBA", "LA", "PA") or "transparency" in image.info
+
+
 def load_image(path):
     """Abre y valida la imagen. Lanza ValueError si no es válida."""
     try:

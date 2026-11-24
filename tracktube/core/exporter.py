@@ -5,7 +5,9 @@ import threading
 import time
 
 import imageio_ffmpeg
+from PIL import Image
 
+from tracktube.core import media_info
 from tracktube.core.ffmpeg_cmd import build_command
 from tracktube.log import logger
 
@@ -39,11 +41,14 @@ def export_video(image, audio, output, aspect_ratio, short_side, fps, fit_mode,
     """
     output.parent.mkdir(parents=True, exist_ok=True)
     ffmpeg_exe = get_ffmpeg_exe()
+    with Image.open(image) as source:
+        transparent = media_info.has_transparency(source)
     cmd = build_command(ffmpeg_exe, image, audio, output,
                         aspect_ratio, short_side, fps, fit_mode,
-                        background, background_image, shadow, margin)
+                        background, background_image, shadow, margin, transparent)
 
     logger.info("Export started: %s", output)
+    logger.debug("Album art transparency: %s", transparent)
     logger.debug("FFmpeg executable: %s", ffmpeg_exe)
     logger.debug("Command: %s", subprocess.list2cmdline(cmd))
     started = time.monotonic()

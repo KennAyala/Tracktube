@@ -3,7 +3,8 @@ from tracktube.core.fit_modes import build_filter_graph
 
 
 def build_command(ffmpeg_exe, image, audio, output, aspect_ratio, short_side, fps, fit_mode,
-                  background="ninguno", background_image=None, shadow=False, margin=0):
+                  background="ninguno", background_image=None, shadow=False, margin=0,
+                  transparent=False):
     """Arma el comando de FFmpeg con las características recomendadas por YouTube."""
     width, height = presets.get_dimensions(aspect_ratio, short_side)
     bitrate = presets.get_video_bitrate_kbps(short_side, fps)
@@ -24,7 +25,8 @@ def build_command(ffmpeg_exe, image, audio, output, aspect_ratio, short_side, fp
 
     command += [
         "-filter_complex",
-        build_filter_graph(fit_mode, width, height, fps, background, shadow, margin),
+        build_filter_graph(fit_mode, width, height, fps, background, shadow, margin,
+                           transparent),
         "-map", "[v]", "-map", "1:a",
         # Video: H.264 High, progresivo, 2 B-frames, GOP cerrado, CABAC, BT.709
         "-c:v", "libx264", "-profile:v", "high", "-bf", "2",

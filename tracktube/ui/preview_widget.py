@@ -9,9 +9,10 @@ PREVIEW_BOX = 400
 
 
 def pil_to_pixmap(image):
-    image = image.convert("RGB")
-    data = image.tobytes("raw", "RGB")
-    qimage = QImage(data, image.width, image.height, image.width * 3, QImage.Format_RGB888)
+    """Convierte una imagen PIL a QPixmap conservando la transparencia."""
+    image = image.convert("RGBA")
+    data = image.tobytes("raw", "RGBA")
+    qimage = QImage(data, image.width, image.height, image.width * 4, QImage.Format_RGBA8888)
     return QPixmap.fromImage(qimage.copy())
 
 
