@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import shiboken6
+
 from tracktube.config import BASE_DIR, SETTINGS_PATH
 from tracktube.settings import create_settings
 
@@ -40,6 +42,7 @@ def test_la_ventana_usa_la_configuracion_de_user(qapp, tmp_path, monkeypatch):
         assert "mi-video.mp4" in path.read_text(encoding="utf-8")
     finally:
         window.log_panel.detach()
+        shiboken6.delete(window)  # se destruye aquí, en el hilo principal
 
 
 def test_la_carpeta_user_esta_en_el_gitignore():

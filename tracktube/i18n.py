@@ -49,13 +49,18 @@ STRINGS = {
         "background.personalizado": "Custom",
         "settings.choose_background": "Choose image…",
         "settings.background_dialog": "Background image",
+        "settings.blur": "Background blur",
+        "settings.blur_tip": "How strong the blur of the blurred background is "
+                             "(50% by default, 0% means no blur)",
+        "settings.blur_reset": "Reset the blur to 50%",
+        "settings.darkness_reset": "Reset the darkness to 0%",
         "settings.darkness": "Background darkness",
         "settings.darkness_tip": "How dark the background is: 0% leaves it as is and 100% makes it black",
         "settings.shadow": "Add shadow to album art",
         "settings.margin": "Margin",
         "settings.margin_tip": "Distance between the album art and the edge of the video; "
                                "a negative value enlarges the album art past the edges",
-        "settings.margin_reset": "Reset margin",
+        "settings.margin_reset": "Reset the margin to 0%",
         "warning.short": "The final video may end up as a YouTube Short",
         "warning.short_hint": "Use a video longer than 3:00 or a horizontal aspect ratio "
                               "(not 1:1 or vertical).",
@@ -127,13 +132,18 @@ STRINGS = {
         "background.personalizado": "Personalizado",
         "settings.choose_background": "Elegir imagen…",
         "settings.background_dialog": "Imagen de fondo",
+        "settings.blur": "Desenfoque del fondo",
+        "settings.blur_tip": "Qué tan fuerte es el desenfoque del fondo desenfocado "
+                             "(50% por defecto, 0% no desenfoca)",
+        "settings.blur_reset": "Restablecer el desenfoque a 50%",
+        "settings.darkness_reset": "Restablecer la oscuridad a 0%",
         "settings.darkness": "Oscuridad del fondo",
         "settings.darkness_tip": "Qué tan oscuro es el fondo: 0% lo deja igual y 100% lo vuelve negro",
         "settings.shadow": "Agregar sombra a la carátula",
         "settings.margin": "Margen",
         "settings.margin_tip": "Distancia entre la carátula y el borde del video; "
                                "un valor negativo agranda la carátula más allá de los bordes",
-        "settings.margin_reset": "Restablecer margen",
+        "settings.margin_reset": "Restablecer el margen a 0%",
         "warning.short": "El vídeo final tiene la posibilidad de terminar como un YouTube Short",
         "warning.short_hint": "Debe ser un vídeo más largo de 3:00 o tener un aspect ratio "
                               "horizontal (no 1:1 ni vertical).",

@@ -2,7 +2,9 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import QGroupBox, QLabel, QPushButton, QVBoxLayout
 
-from tracktube.core.fit_modes import DEFAULT_BACKGROUND, DEFAULT_FIT_MODE, render_preview
+from tracktube.core.fit_modes import (
+    DEFAULT_BACKGROUND, DEFAULT_BLUR, DEFAULT_FIT_MODE, render_preview,
+)
 from tracktube.i18n import tr
 
 PREVIEW_BOX = 400
@@ -31,6 +33,7 @@ class PreviewWidget(QGroupBox):
         self._margin = 0
         self._background_image = None
         self._darkness = 0
+        self._blur = DEFAULT_BLUR
 
         self.canvas = QLabel()
         self.canvas.setFixedSize(PREVIEW_BOX, PREVIEW_BOX)
@@ -60,13 +63,15 @@ class PreviewWidget(QGroupBox):
         self._ratio = (ratio_w, ratio_h)
         self._refresh()
 
-    def set_options(self, mode, background, shadow, margin, background_image, darkness=0):
+    def set_options(self, mode, background, shadow, margin, background_image, darkness=0,
+                    blur=DEFAULT_BLUR):
         self._mode = mode
         self._background = background
         self._shadow = shadow
         self._margin = margin
         self._background_image = background_image
         self._darkness = darkness
+        self._blur = blur
         self._refresh()
 
     def _refresh(self):
@@ -84,5 +89,6 @@ class PreviewWidget(QGroupBox):
         else:
             pixmap = pil_to_pixmap(render_preview(
                 self._image, self._mode, width, height, self._background,
-                self._shadow, self._margin, self._background_image, self._darkness))
+                self._shadow, self._margin, self._background_image, self._darkness,
+                self._blur))
         self.canvas.setPixmap(pixmap)

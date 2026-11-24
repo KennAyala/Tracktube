@@ -24,7 +24,9 @@ Reference: [Recommended upload encoding settings](https://support.google.com/you
 - **FPS:** Minimum (1), 15, 24, 30 and 60 (default).
 - **Image fit:** Fit, Crop or Stretch.
 - With *Fit*: **background** (none, blurred album art or a custom image), album art **shadow** and a **margin** that moves the album art away from the edge. A **negative margin** (down to -50 %) does the opposite: it enlarges the album art past the edges so it looks closer.
+- **Background blur:** a percentage for how strong the blurred background is (50 % by default, 0 % means no blur). It is always visible and is enabled only with the *Blurred album art* background.
 - **Background darkness:** a percentage that darkens the background (0 % leaves it as is, 100 % makes it black). It is always visible and is enabled only when a background is used; it never darkens the album art or its shadow.
+- **Reset buttons (✕):** the blur, darkness and margin inputs each have a ✕ button that returns the input to its default value (blur 50 %, darkness 0 %, margin 0 %). The ✕ is only shown while the value is different from the default, and it keeps its space so the layout does not move.
 - **Export folder** and **file name** are separate fields (default `exports/` and `{uuid}.mp4`). A button changes the folder, and a refresh button next to the file name generates a new UUID. The UUID changes every time the app opens and after each export; a file name you typed yourself is kept.
 - Warns you before exporting if a video already exists at the chosen path and will be replaced.
 - Progress bar with its status next to the Export button (Ready, Exporting… 45%, Done) and a cancel button.
@@ -157,6 +159,7 @@ What they cover:
 | `test_image_export.py` | Choosing JPG or PNG from the extension or the dialog filter, and saving both formats |
 | `test_cover_and_preview_export.py` | UI (headless): the "Use metadata image" button and the export of the preview as an image (format, size, current settings, suggested file name, cancel and errors) |
 | `test_darkness_and_negative_margin.py` | Background darkness and negative margin in the FFmpeg filter, the preview and real exports (it measures the pixels of the exported video) |
+| `test_blur_and_reset_buttons.py` | The blur percentage in the FFmpeg filter, the preview and a real export, and the UI: blur input state, and the ✕ buttons (shown only when the value changes, reset to the default, restored on start, stable layout) |
 | `test_options_and_cover_label.py` | UI (headless): the darkness input (always visible, enabled only with a background), negative margin, and the "Album art in metadata" label with its colors and languages |
 | `test_settings.py` | Settings saved in `user/conf.ini`, folder creation and `user/` in `.gitignore` |
 | `test_theme.py` | Which color scheme each theme requests |
@@ -170,7 +173,9 @@ What they cover:
 - [ ] **Export preview as image** is disabled without an image, opens a save dialog with JPG first (default) and PNG, and the saved file has the video's resolution.
 - [ ] The **Album art in metadata** line shows **Yes (width × height)** in green for an audio with an image in its tags and **No** in red for one without, in both the light and dark themes.
 - [ ] **Background darkness** is always visible; it is disabled with no background (or with Crop / Stretch) and enabled with a blurred or custom background, and a higher value gives a darker background in the preview and in the video.
-- [ ] The margin accepts negative values and the album art gets bigger and closer; the ✕ button resets it to 0.
+- [ ] **Background blur** is always visible, enabled only with the *Blurred album art* background, 50 % by default, and a higher value gives a blurrier background in the preview and in the video.
+- [ ] The margin accepts negative values and the album art gets bigger and closer.
+- [ ] The ✕ buttons of blur, darkness and margin only appear when the value is not the default, reset it when clicked, and the other inputs do not move when they appear.
 - [ ] **Export preview as image** suggests the same name as the **File name** field, with `.jpg`.
 - [ ] The preview updates when changing ratio, orientation, fit, background, darkness, shadow and margin.
 - [ ] A PNG with transparency shows the background through its transparent areas (no white box) in the thumbnail, the preview and the exported video.

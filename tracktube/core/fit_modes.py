@@ -19,11 +19,18 @@ DEFAULT_BACKGROUND = "ninguno"
 
 # Margen del album art respecto al borde, en % del lado corto. Un margen negativo
 # agranda el album art más allá del cuadro (se acerca y el borde se recorta).
+DEFAULT_MARGIN = 0
 MIN_MARGIN = -50
 MAX_MARGIN = 40
 
 # Oscuridad del fondo en %: 0 lo deja igual y 100 lo vuelve negro
+DEFAULT_DARKNESS = 0
 MAX_DARKNESS = 100
+
+# Intensidad del desenfoque del fondo en %: 0 no desenfoca (50 es el valor por defecto)
+DEFAULT_BLUR = 50
+MAX_BLUR = 100
+MIN_BLUR_SIGMA = 0.01  # gblur no admite menos
 
 _SHADOW_OPACITY = 0.6
 
@@ -31,8 +38,14 @@ _SHADOW_OPACITY = 0.6
 _OUTPUT = "setsar=1,scale=out_color_matrix=bt709:out_range=tv,format=yuv420p"
 
 
-def _blur_sigma(width, height):
-    return max(1, min(width, height) / 25)
+def _blur_sigma(width, height, blur=DEFAULT_BLUR):
+    """Desviación del desenfoque: al 50% vale el 4% del lado corto y 0% no desenfoca."""
+    return min(width, height) * 0.08 * blur / 100
+
+
+def _blur_filter(width, height, blur):
+    sigma = _blur_sigma(width, height, blur)
+    return f",gblur=sigma={sigma:.2f}" if sigma >= MIN_BLUR_SIGMA else ""
 
 
 def _shadow_params(width, height):
@@ -59,13 +72,15 @@ def _darken_filter(darkness):
 
 
 def build_filter_graph(mode, width, height, fps, background=DEFAULT_BACKGROUND,
-                       shadow=False, margin=0, transparent=False, darkness=0):
+                       shadow=False, margin=0, transparent=False, darkness=0,
+                       blur=DEFAULT_BLUR):
     """Devuelve el filter_complex de FFmpeg con salida etiquetada [v].
 
     El input se lee a 1 fps y `fps` duplica el frame al final, así los
     filtros pesados solo se ejecutan una vez por segundo.
-    El fondo "personalizado" toma su imagen del input [2:v] y `darkness` (0-100)
-    oscurece el fondo desenfocado o personalizado.
+    El fondo "personalizado" toma su imagen del input [2:v]; `darkness` (0-100)
+    oscurece el fondo desenfocado o personalizado y `blur` (0-100) fija cuánto se
+    desenfoca el fondo desenfocado.
     Si la imagen tiene transparencia (`transparent`), se compone sobre el fondo
     (negro cuando no hay fondo), porque el MP4 no admite canal alfa.
     """
@@ -78,7 +93,7 @@ def build_filter_graph(mode, width, height, fps, background=DEFAULT_BACKGROUND,
             )
         else:
             return _build_framed_graph(
-                width, height, fps, background, shadow, margin, darkness)
+                width, height, fps, background, shadow, margin, darkness, blur)
     elif mode == "cortar":
         chain = (
             f"[0:v]scale={size}:force_original_aspect_ratio=increase,"
@@ -98,7 +113,8 @@ def build_filter_graph(mode, width, height, fps, background=DEFAULT_BACKGROUND,
     return f"{chain}{_OUTPUT},fps={fps}[v]"
 
 
-def _build_framed_graph(width, height, fps, background, shadow, margin, darkness=0):
+def _build_framed_graph(width, height, fps, background, shadow, margin, darkness=0,
+                        blur=DEFAULT_BLUR):
     size = f"{width}:{height}"
     inset = _inset(width, height, margin)  # negativo: el album art desborda el cuadro
     box = f"{width - 2 * inset}:{height - 2 * inset}"
@@ -109,7 +125,7 @@ def _build_framed_graph(width, height, fps, background, shadow, margin, darkness
         parts.append("[0:v]split[a][b]")
         parts.append(
             f"[a]scale={size}:force_original_aspect_ratio=increase,"
-            f"crop={size},gblur=sigma={_blur_sigma(width, height):.1f},format=rgba{darken}[bg]"
+            f"crop={size}{_blur_filter(width, height, blur)},format=rgba{darken}[bg]"
         )
         source = "[b]"
     elif background == "personalizado":
@@ -153,7 +169,8 @@ def _build_framed_graph(width, height, fps, background, shadow, margin, darkness
 
 
 def render_preview(image, mode, width, height, background=DEFAULT_BACKGROUND,
-                   shadow=False, margin=0, background_image=None, darkness=0):
+                   shadow=False, margin=0, background_image=None, darkness=0,
+                   blur=DEFAULT_BLUR):
     """Devuelve una imagen PIL de width x height con el mismo ajuste del video."""
     # Se trabaja en RGBA para conservar la transparencia; al final se compone sobre negro
     image = ImageOps.exif_transpose(image).convert("RGBA")
@@ -167,7 +184,9 @@ def render_preview(image, mode, width, height, background=DEFAULT_BACKGROUND,
 
     if background == "desenfocado":
         canvas = ImageOps.fit(image, size, Image.LANCZOS)
-        canvas = canvas.filter(ImageFilter.GaussianBlur(_blur_sigma(width, height)))
+        sigma = _blur_sigma(width, height, blur)
+        if sigma >= MIN_BLUR_SIGMA:
+            canvas = canvas.filter(ImageFilter.GaussianBlur(sigma))
     elif background == "personalizado" and background_image is not None:
         canvas = ImageOps.fit(
             ImageOps.exif_transpose(background_image).convert("RGBA"), size, Image.LANCZOS)

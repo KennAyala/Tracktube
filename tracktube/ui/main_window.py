@@ -14,8 +14,8 @@ from PySide6.QtWidgets import (
 from tracktube.config import APP_NAME, AUDIO_EXTENSIONS, DEFAULT_EXPORT_DIR, IMAGE_EXTENSIONS
 from tracktube.core import export_path, media_info, presets
 from tracktube.core.fit_modes import (
-    BACKGROUNDS, DEFAULT_BACKGROUND, DEFAULT_FIT_MODE, FIT_MODES, MAX_DARKNESS, MAX_MARGIN,
-    MIN_MARGIN, render_preview,
+    BACKGROUNDS, DEFAULT_BACKGROUND, DEFAULT_BLUR, DEFAULT_DARKNESS, DEFAULT_FIT_MODE,
+    DEFAULT_MARGIN, FIT_MODES, MAX_BLUR, MAX_DARKNESS, MAX_MARGIN, MIN_MARGIN, render_preview,
 )
 from tracktube.core.image_export import IMAGE_FILTERS, resolve_image_path, save_image
 from tracktube.i18n import DEFAULT_LANGUAGE, LANGUAGES, get_language, set_language, tr
@@ -200,18 +200,26 @@ class MainWindow(QMainWindow):
         background_layout.addWidget(self.btn_background)
         background_layout.addWidget(self.label_background_file, 1)
 
-        # Siempre visible; se habilita solo cuando hay un fondo
+        # Desenfoque y oscuridad se muestran siempre; se habilitan solo cuando hay un fondo
+        # desenfocado o un fondo, respectivamente
+        self.spin_blur = QSpinBox()
+        self.spin_blur.setRange(0, MAX_BLUR)
+        self.spin_blur.setSuffix(" %")
+        self.spin_blur.setValue(DEFAULT_BLUR)
+        self.btn_blur_reset = self._reset_button(self.spin_blur, DEFAULT_BLUR)
+
         self.spin_darkness = QSpinBox()
         self.spin_darkness.setRange(0, MAX_DARKNESS)
         self.spin_darkness.setSuffix(" %")
+        self.spin_darkness.setValue(DEFAULT_DARKNESS)
+        self.btn_darkness_reset = self._reset_button(self.spin_darkness, DEFAULT_DARKNESS)
 
         self.check_shadow = QCheckBox()
         self.spin_margin = QSpinBox()
         self.spin_margin.setRange(MIN_MARGIN, MAX_MARGIN)  # negativo: acerca la imagen
         self.spin_margin.setSuffix(" %")
-        self.btn_margin_reset = QToolButton()
-        self.btn_margin_reset.setText("✕")
-        self.btn_margin_reset.clicked.connect(lambda: self.spin_margin.setValue(0))
+        self.spin_margin.setValue(DEFAULT_MARGIN)
+        self.btn_margin_reset = self._reset_button(self.spin_margin, DEFAULT_MARGIN)
 
         self.fps_group = QButtonGroup(self)
         fps_layout = QHBoxLayout()
@@ -226,6 +234,7 @@ class MainWindow(QMainWindow):
         self.label_resolution = QLabel()
         self.label_fit = QLabel()
         self.label_background = QLabel()
+        self.label_blur = QLabel()
         self.label_darkness = QLabel()
         self.label_margin = QLabel()
         self.label_fps = QLabel()
@@ -240,14 +249,18 @@ class MainWindow(QMainWindow):
         grid.addWidget(self.label_background, 3, 0)
         grid.addWidget(self.combo_background, 3, 1, 1, 2)
         grid.addWidget(self.background_row, 4, 1, 1, 2)
-        grid.addWidget(self.label_darkness, 5, 0)
-        grid.addWidget(self.spin_darkness, 5, 1)
-        grid.addWidget(self.check_shadow, 6, 0, 1, 3)
-        grid.addWidget(self.label_margin, 7, 0)
-        grid.addWidget(self.spin_margin, 7, 1)
-        grid.addWidget(self.btn_margin_reset, 7, 2)
-        grid.addWidget(self.label_fps, 8, 0)
-        grid.addLayout(fps_layout, 8, 1, 1, 2)
+        grid.addWidget(self.label_blur, 5, 0)
+        grid.addWidget(self.spin_blur, 5, 1)
+        grid.addWidget(self.btn_blur_reset, 5, 2)
+        grid.addWidget(self.label_darkness, 6, 0)
+        grid.addWidget(self.spin_darkness, 6, 1)
+        grid.addWidget(self.btn_darkness_reset, 6, 2)
+        grid.addWidget(self.check_shadow, 7, 0, 1, 3)
+        grid.addWidget(self.label_margin, 8, 0)
+        grid.addWidget(self.spin_margin, 8, 1)
+        grid.addWidget(self.btn_margin_reset, 8, 2)
+        grid.addWidget(self.label_fps, 9, 0)
+        grid.addLayout(fps_layout, 9, 1, 1, 2)
 
         self.combo_ratio.currentIndexChanged.connect(self._on_ratio_changed)
         self.orientation_group.buttonClicked.connect(self._on_ratio_changed)
@@ -256,9 +269,27 @@ class MainWindow(QMainWindow):
         self.combo_fit.currentIndexChanged.connect(self._on_options_changed)
         self.combo_background.currentIndexChanged.connect(self._on_options_changed)
         self.check_shadow.toggled.connect(self._on_options_changed)
+        self.spin_blur.valueChanged.connect(self._on_options_changed)
         self.spin_darkness.valueChanged.connect(self._on_options_changed)
         self.spin_margin.valueChanged.connect(self._on_options_changed)
         return self.group_settings
+
+    @staticmethod
+    def _reset_button(spin, default):
+        """Botón ✕ que devuelve el campo a su valor por defecto.
+
+        Solo se muestra mientras el valor sea distinto del valor por defecto.
+        """
+        button = QToolButton()
+        button.setText("✕")
+        # Oculta conserva su espacio, así el resto de los campos no se mueve al aparecer
+        policy = button.sizePolicy()
+        policy.setRetainSizeWhenHidden(True)
+        button.setSizePolicy(policy)
+        button.clicked.connect(lambda: spin.setValue(default))
+        spin.valueChanged.connect(lambda value: button.setVisible(value != default))
+        button.setVisible(spin.value() != default)
+        return button
 
     def _build_export(self):
         self.group_export = QGroupBox()
@@ -355,9 +386,14 @@ class MainWindow(QMainWindow):
         self._retranslate_combo(self.combo_background, "background")
         self.btn_background.setText(tr("settings.choose_background"))
         self._update_background_label()
+        self.label_blur.setText(tr("settings.blur"))
+        self.label_blur.setToolTip(tr("settings.blur_tip"))
+        self.spin_blur.setToolTip(tr("settings.blur_tip"))
+        self.btn_blur_reset.setToolTip(tr("settings.blur_reset"))
         self.label_darkness.setText(tr("settings.darkness"))
         self.label_darkness.setToolTip(tr("settings.darkness_tip"))
         self.spin_darkness.setToolTip(tr("settings.darkness_tip"))
+        self.btn_darkness_reset.setToolTip(tr("settings.darkness_reset"))
         self.check_shadow.setText(tr("settings.shadow"))
         self.label_margin.setText(tr("settings.margin"))
         self.spin_margin.setToolTip(tr("settings.margin_tip"))
@@ -498,17 +534,22 @@ class MainWindow(QMainWindow):
                        self.label_margin, self.spin_margin, self.btn_margin_reset,
                        self.background_row):
             widget.setEnabled(framed)
-        # La oscuridad se muestra siempre, pero solo se habilita si hay un fondo que oscurecer
+        # El desenfoque y la oscuridad se muestran siempre, pero solo se habilitan si hay
+        # un fondo desenfocado o un fondo que oscurecer, respectivamente
         has_background = framed and background != DEFAULT_BACKGROUND
-        self.label_darkness.setEnabled(has_background)
-        self.spin_darkness.setEnabled(has_background)
+        has_blur = framed and background == "desenfocado"
+        for widget in (self.label_blur, self.spin_blur, self.btn_blur_reset):
+            widget.setEnabled(has_blur)
+        for widget in (self.label_darkness, self.spin_darkness, self.btn_darkness_reset):
+            widget.setEnabled(has_background)
         self.background_row.setVisible(background == "personalizado")
-        logger.debug("Options: fit=%s background=%s darkness=%d%% shadow=%s margin=%d%%",
-                     fit_mode, background, self.spin_darkness.value(),
+        logger.debug("Options: fit=%s background=%s blur=%d%% darkness=%d%% shadow=%s margin=%d%%",
+                     fit_mode, background, self.spin_blur.value(), self.spin_darkness.value(),
                      self.check_shadow.isChecked(), self.spin_margin.value())
         self.preview.set_options(
             fit_mode, background, self.check_shadow.isChecked(),
-            self.spin_margin.value(), self._background_image, self.spin_darkness.value())
+            self.spin_margin.value(), self._background_image, self.spin_darkness.value(),
+            self.spin_blur.value())
 
     def _export_preview_image(self):
         """Guarda la vista previa como JPG (por defecto) o PNG con la resolución del video."""
@@ -532,7 +573,8 @@ class MainWindow(QMainWindow):
             image = render_preview(
                 self._image, self.combo_fit.currentData(), width, height,
                 self.combo_background.currentData(), self.check_shadow.isChecked(),
-                self.spin_margin.value(), self._background_image, self.spin_darkness.value())
+                self.spin_margin.value(), self._background_image, self.spin_darkness.value(),
+                self.spin_blur.value())
             save_image(image, target)
         except OSError as e:
             logger.error("Could not save the preview image: %s", e)
@@ -640,11 +682,11 @@ class MainWindow(QMainWindow):
                 return
         self._output = output
         logger.info("Export requested: ratio=%s %dp %s fps, fit=%s, background=%s, "
-                    "darkness=%d%%, shadow=%s, margin=%d%%",
+                    "blur=%d%%, darkness=%d%%, shadow=%s, margin=%d%%",
                     self._current_ratio(), self.combo_resolution.currentData(),
                     self.fps_group.checkedId(), self.combo_fit.currentData(), background,
-                    self.spin_darkness.value(), self.check_shadow.isChecked(),
-                    self.spin_margin.value())
+                    self.spin_blur.value(), self.spin_darkness.value(),
+                    self.check_shadow.isChecked(), self.spin_margin.value())
         self._worker = ExportWorker({
             "image": self.slot_image.path,
             "audio": self.slot_audio.path,
@@ -656,6 +698,7 @@ class MainWindow(QMainWindow):
             "duration": self._duration,
             "background": background,
             "background_image": self._background_path,
+            "blur": self.spin_blur.value(),
             "darkness": self.spin_darkness.value(),
             "shadow": self.check_shadow.isChecked(),
             "margin": self.spin_margin.value(),
@@ -709,9 +752,10 @@ class MainWindow(QMainWindow):
         self._set_combo_data(self.combo_fit, s.value("fit_mode", DEFAULT_FIT_MODE, type=str))
         self._set_combo_data(self.combo_background,
                              s.value("background", DEFAULT_BACKGROUND, type=str))
-        self.spin_darkness.setValue(s.value("darkness", 0, type=int))
+        self.spin_blur.setValue(s.value("blur", DEFAULT_BLUR, type=int))
+        self.spin_darkness.setValue(s.value("darkness", DEFAULT_DARKNESS, type=int))
         self.check_shadow.setChecked(s.value("shadow", False, type=bool))
-        self.spin_margin.setValue(s.value("margin", 0, type=int))
+        self.spin_margin.setValue(s.value("margin", DEFAULT_MARGIN, type=int))
         button = self.fps_group.button(s.value("fps", presets.DEFAULT_FPS, type=int))
         if button is not None:
             button.setChecked(True)
@@ -745,6 +789,7 @@ class MainWindow(QMainWindow):
         self.combo_fit.currentIndexChanged.connect(self._save_settings)
         self.combo_background.currentIndexChanged.connect(self._save_settings)
         self.check_shadow.toggled.connect(self._save_settings)
+        self.spin_blur.valueChanged.connect(self._save_settings)
         self.spin_darkness.valueChanged.connect(self._save_settings)
         self.spin_margin.valueChanged.connect(self._save_settings)
         self.fps_group.idClicked.connect(self._save_settings)
@@ -763,6 +808,7 @@ class MainWindow(QMainWindow):
         s.setValue("fit_mode", self.combo_fit.currentData())
         s.setValue("background", self.combo_background.currentData())
         s.setValue("background_image", self._background_path or "")
+        s.setValue("blur", self.spin_blur.value())
         s.setValue("darkness", self.spin_darkness.value())
         s.setValue("shadow", self.check_shadow.isChecked())
         s.setValue("margin", self.spin_margin.value())
